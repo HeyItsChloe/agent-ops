@@ -14,6 +14,9 @@ export function applyTheme() {
 
   document.title = wikiConfig.title;
 
+  // Prefix with Vite's base so the favicon resolves on a project site
+  // (e.g. /agent-ops/) - a bare "/favicon.svg" would point at the domain
+  // root and 404 there.
   const favicon = document.getElementById('wiki-favicon');
-  if (favicon) favicon.setAttribute('href', wikiConfig.favicon);
+  if (favicon) favicon.setAttribute('href', import.meta.env.BASE_URL + (wikiConfig.favicon || '/favicon.svg').replace(/^\//, ''));
 }
