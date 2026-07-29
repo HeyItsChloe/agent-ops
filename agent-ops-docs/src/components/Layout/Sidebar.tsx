@@ -19,18 +19,15 @@ import {
   FileText,
   type LucideIcon,
 } from 'lucide-react';
-import { sidebarSections, sectionKeyForPath } from '../../data/navigation';
+import { sidebarSections } from '../../data/navigation';
 import { cn } from '../../lib/cn';
 
 // Full multi-section navigation tree. The header carries no tabs, so this is
-// the primary navigator: every category header gets an icon, a background
-// highlight, and white text (active = brand), and each section is
-// collapsible; the section for the current route auto-expands and collapse
-// state persists.
+// the primary navigator: every category header gets an icon; the active row
+// is a filled brand pill, inactive rows are just underlined with white text;
+// each section is collapsible and collapse state persists.
 const STORAGE_KEY = 'wiki-sidebar-collapsed';
 
-// Icon per section key, with sensible defaults for the app-repo section kinds
-// and the common markdown navSections. Unknown sections fall back to a doc icon.
 const SECTION_ICONS: Record<string, LucideIcon> = {
   features: Sparkles,
   'ci-cd': Workflow,
@@ -55,18 +52,25 @@ function loadCollapsed(): Record<string, boolean> {
   }
 }
 
-// Shared look for the 9 category headers (Overview + each section): icon +
-// white text on a subtle highlight; active row uses the brand highlight.
-function headerClass(active: boolean) {
+// Whole-row look: active = filled brand pill; inactive = underline only.
+function rowClass(active: boolean) {
+  return cn('flex items-center transition-fast', active ? 'rounded-lg bg-brand-muted' : 'border-b border-surface-border');
+}
+function labelClass(active: boolean) {
   return cn(
-    'flex flex-1 items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition-fast',
-    active ? 'bg-brand-muted text-brand' : 'bg-surface text-white hover:bg-surface-hover'
+    'flex flex-1 items-center gap-2 px-3 py-2 text-sm font-semibold transition-fast',
+    active ? 'text-brand' : 'text-white hover:text-brand'
   );
 }
 
 export function Sidebar() {
   const location = useLocation();
-  const activeKey = sectionKeyForPath(location.pathname);
+  // A section is active only when the first path segment actually names it -
+  // no fallback to the first section, so the Overview page ("/") highlights
+  // nothing but Overview.
+  const seg = location.pathname.split('/').filter(Boolean)[0] ?? '';
+  const activeKey = seg in sidebarSections ? seg : '';
+  const onOverview = location.pathname === '/';
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>(loadCollapsed);
 
   const toggle = (key: string) => {
@@ -82,15 +86,16 @@ export function Sidebar() {
   };
 
   const isChildActive = (href: string) => location.pathname === href;
-  const onOverview = location.pathname === '/';
 
   return (
     <aside className="hidden md:flex flex-col w-64 shrink-0 border-r border-surface-border bg-background">
-      <nav className="flex-1 p-4 sticky top-16 self-start space-y-1.5">
-        <Link to="/" className={headerClass(onOverview)}>
-          <Home size={16} className="shrink-0" />
-          Overview
-        </Link>
+      <nav className="flex-1 p-4 sticky top-16 self-start space-y-1">
+        <div className={rowClass(onOverview)}>
+          <Link to="/" className={labelClass(onOverview)}>
+            <Home size={16} className="shrink-0" />
+            Overview
+          </Link>
+        </div>
 
         {Object.entries(sidebarSections).map(([key, section]) => {
           const hasChildren = section.children.length > 0;
@@ -99,8 +104,8 @@ export function Sidebar() {
           const Icon = SECTION_ICONS[key] ?? FileText;
           return (
             <div key={key}>
-              <div className="flex items-center gap-1">
-                <Link to={section.href} className={headerClass(isActive)}>
+              <div className={rowClass(isActive)}>
+                <Link to={section.href} className={labelClass(isActive)}>
                   <Icon size={16} className="shrink-0" />
                   <span className="truncate">{section.title}</span>
                 </Link>
@@ -109,7 +114,7 @@ export function Sidebar() {
                     type="button"
                     onClick={() => toggle(key)}
                     aria-label={isOpen ? 'Collapse' : 'Expand'}
-                    className={cn('shrink-0 rounded-lg p-1.5 transition-fast', isActive ? 'text-brand' : 'text-content-muted hover:text-white')}
+                    className={cn('shrink-0 self-stretch px-2 transition-fast', isActive ? 'text-brand' : 'text-content-muted hover:text-white')}
                   >
                     <ChevronRight size={14} className={cn('transition-fast', isOpen && 'rotate-90')} />
                   </button>
