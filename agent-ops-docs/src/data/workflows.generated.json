@@ -327,6 +327,10 @@
             "detail": "run: npm install --no-audit --no-fund"
           },
           {
+            "name": "Author docs content (optional)",
+            "detail": "run: node .wiki-control/scripts/wiki-author.mjs \\"
+          },
+          {
             "name": "Run wiki generator",
             "detail": "run: node .wiki-control/scripts/wiki-generate.mjs \\"
           },
@@ -371,6 +375,6 @@
         ]
       }
     ],
-    "_sourceHash": "dba4e690152095f64a669d03a288702d92c332b7"
+    "_sourceHash": "9194edaeba1564aed6ef36a0a85ce7bfe004e1e2"
   }
 ]

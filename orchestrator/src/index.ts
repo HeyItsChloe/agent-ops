@@ -32,7 +32,7 @@ const githubApp: GitHubAppConfig = {
   privateKey: requireEnv("GH_APP_PRIVATE_KEY").replace(/\\n/g, "\n"),
 };
 
-// Two installations of the same GitHub App (pipeline-orchestrator-opps):
+// Two installations of the same GitHub App (pipeline-orchestrator-management):
 // one on the 11thandOrange org (dev-ticket-pipeline dispatch, e.g.
 // BusyBuddy_v2), one on the heyitschloe personal account (job-search
 // pipeline's own skill fetch, the-store append). Using the wrong one for
