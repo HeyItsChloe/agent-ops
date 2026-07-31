@@ -1,50 +1,62 @@
-# wiki-site template
+# agent-ops-docs
 
-Shared React + TypeScript + Tailwind + Vite documentation site template
-(agent-ops issue #286). This directory is not meant to be developed against
-directly for a specific app - it's bootstrapped into each consuming repo's
-own `docs/` (or whatever `--site-dir` the caller workflow configures) by
-`scripts/wiki-generate.mjs`, which copies any file here that doesn't already
-exist in the target checkout, then runs the configured extractors to
-populate `src/data/*.generated.json` + `src/data/*.ts` and `src/content/*.md`.
+This repo's **own** generated documentation site — a bootstrapped instance of
+the shared [`templates/wiki-site`](../templates/wiki-site/README.md) template.
+agent-ops "documents itself": the wiki generator runs against this repo using
+[`../wiki.config.yaml`](../wiki.config.yaml) and writes into this directory.
+
+> This is **not** the reusable template. The generic template lives at
+> [`../templates/wiki-site/`](../templates/wiki-site/); this is what it looks
+> like once bootstrapped and populated for one repo (agent-ops).
+
+Built and deployed to GitHub Pages by
+[`../.github/workflows/deploy-docs.yml`](../.github/workflows/README.md) on push
+to `main` touching `agent-ops-docs/**`. (Note: unlike consuming repos, whose
+sites are generated *and* deployed by `wiki-generate-reusable.yml`, agent-ops's
+own site is deployed by the dedicated `deploy-docs.yml`.)
+
+Related: [`../README.md`](../README.md) ·
+[`../scripts/README.md`](../scripts/README.md) (the generator) ·
+[`../templates/wiki-site/README.md`](../templates/wiki-site/README.md) (the template).
 
 ## What's generated vs. hand-owned
 
+Because this is a bootstrapped `wiki-site`, the same ownership rules apply:
+
 | Path | Owner |
 |---|---|
-| `src/data/*.generated.json` | extractors (idempotent merge - safe to hand-edit between runs) |
-| `src/data/*.ts` | extractors/driver (always fully regenerated - never hand-edit) |
-| `src/content/*.md` | markdown extractor (verbatim copies of source docs) |
-| `src/wiki.config.generated.ts` | driver, from the repo's `wiki.config.yaml` |
-| everything else (components, pages, config files) | the consuming repo, once bootstrapped - customize freely, the generator never overwrites an existing file outside the paths above |
+| `src/data/*.generated.json` | extractors (idempotent merge — safe to hand-edit between runs) |
+| `src/data/*.ts` | extractors/driver (always fully regenerated — never hand-edit) |
+| `src/content/*.md` | markdown/features extractors (authored feature prose lives in `src/content/features/`) |
+| `src/wiki.config.generated.ts`, `src/data/navigation.ts` | driver, from `../wiki.config.yaml` |
+| everything else (components, pages, config files) | hand-owned — the generator never overwrites files outside the paths above |
 
-## Content model
-
-Every page renders one of the typed arrays in `src/data/*.ts`
-(`EndpointGroup[]`, `AppDoc[]`, `WorkflowDoc[]`, `AutomationDoc[]`,
-`TestSuiteDoc[]`, `MarkdownPageDoc[]` - see `src/types/index.ts`) - there is
-no markdown-prose-as-page-source and no LLM in the generation loop. The
-`DocsPage` route is the one exception in spirit only: it renders ingested
-markdown files verbatim, but which files exist and their nav placement is
-still driven by the typed `MarkdownPageDoc[]` registry, not free text.
-
-## Sandbox ("Try it")
-
-`src/components/ApiReference/Sandbox.tsx` never calls the target API
-directly from the browser - it always POSTs to `wikiConfig.proxyBaseUrl +
-"/api/proxy"` (see `../wiki-backend`), which forwards server-side to
-`wikiConfig.targetApiBaseUrl`. This is what makes every endpoint (not just
-unauthenticated ones) live-testable: auth is supplied per-request in the
-sandbox UI and is never persisted.
+What this site documents (per [`../wiki.config.yaml`](../wiki.config.yaml)):
+authored **feature** pages, the **workflows** (CI/CD), the shared **skills**,
+npm **dependencies** + authored **integrations**, ingested **markdown**
+(roadmap, contributing, orchestrator README), and an authored **changelog**.
+The app-repo extractors (API endpoints, app list, e2e tests, per-repo
+automation) are disabled here — agent-ops ships no app API and no pipeline runs
+against it.
 
 ## Local development
 
 ```bash
 npm install
-npm run dev
+npm run dev      # vite dev server
+npm run build    # tsc -b && vite build -> dist/
 ```
 
-Without a real `wiki.config.yaml`-driven generation pass, all data arrays
-are empty placeholders and pages render an empty state - run
-`node ../../scripts/wiki-generate.mjs --repo-root <target-repo> --control-repo <agent-ops-checkout>`
-first (from a bootstrapped site) to see real content.
+To regenerate the data/content from source before building, run the generator
+from the repo root (see [`../scripts/README.md`](../scripts/README.md)):
+
+```bash
+node scripts/wiki-generate.mjs \
+  --repo-root . \
+  --control-repo . \
+  --config wiki.config.yaml \
+  --site-dir agent-ops-docs
+```
+
+(For agent-ops, `--repo-root` and `--control-repo` are the same checkout, since
+this repo is both the documented repo and the control repo.)
