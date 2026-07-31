@@ -1,0 +1,48 @@
+# Thin per-app-repo caller for agent-ops's postman-generate-reusable.yml
+# (issue #12 - shared Postman collection generator). Same pattern as
+# templates/wiki-caller.yml: this file is NOT pushed into app repos
+# automatically - copy it into
+# `<app-repo>/.github/workflows/postman-generate.yml` yourself and set the
+# inputs for how that repo's API is described (an OpenAPI/Swagger spec, or the
+# wiki endpoint-extractor inventory).
+#
+# GH_APP_ID / GH_APP_PRIVATE_KEY must exist as repo or org secrets in the
+# target repo (same requirement wiki-caller.yml already documents), so the
+# reusable workflow can read agent-ops/scripts/postman and push the
+# regenerated collection back on a real API change.
+
+name: postman-generate
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  # --- Option A: repo HAS an OpenAPI/Swagger spec (preferred) ---
+  generate-from-spec:
+    permissions:
+      contents: write
+    uses: HeyItsChloe/agent-ops/.github/workflows/postman-generate-reusable.yml@main
+    with:
+      endpoint_source: spec
+      spec_path: openapi.json            # relative to working_directory
+      output_path: postman/collection.json
+      collection_name: My API
+    secrets: inherit
+
+  # --- Option B: repo has NO spec, but the wiki inventories its endpoints ---
+  # Delete Option A above and use this instead when there is no OpenAPI spec;
+  # it reuses docs/src/data/endpoints.generated.json produced by the wiki
+  # endpoint extractors (endpoints-express.mjs / endpoints-kotlin.mjs).
+  #
+  # generate-from-extractors:
+  #   permissions:
+  #     contents: write
+  #   uses: HeyItsChloe/agent-ops/.github/workflows/postman-generate-reusable.yml@main
+  #   with:
+  #     endpoint_source: extractors
+  #     endpoints_inventory_path: docs/src/data/endpoints.generated.json
+  #     output_path: postman/collection.json
+  #     collection_name: My API
+  #   secrets: inherit

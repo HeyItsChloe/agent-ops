@@ -1,0 +1,8 @@
+{
+  "$comment": "Copy to <target-repo>/postman.config.json. CLI flags and PM_* env vars override these. See scripts/postman/README.md.",
+  "source": "spec",
+  "specPath": "openapi.json",
+  "endpointSource": "docs/src/data/endpoints.generated.json",
+  "output": "postman/collection.json",
+  "name": "My API"
+}

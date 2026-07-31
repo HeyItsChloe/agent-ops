@@ -1,0 +1,160 @@
+name: postman-generate-reusable
+
+# Shared Postman Collection generator (agent-ops issue #12). Central CI logic
+# lives here once; app repos keep only a thin caller workflow
+# (templates/postman-caller.yml), exactly like wiki-generate-reusable.yml
+# does for the wiki generator.
+#
+# Flow: checkout the calling ("target") repo + this control repo (agent-ops,
+# cross-account, same GH App token trick as wiki-generate-reusable.yml) ->
+# run scripts/postman/generate.mjs against the target repo (from an OpenAPI/
+# Swagger spec, or from the wiki endpoint-extractor inventory) -> validate the
+# output against the Postman v2.1 schema (fails the job on any generation or
+# validation error) -> if the generated collection differs from what's
+# committed (i.e. an endpoint was added/changed), commit it back to the
+# target repo's default branch, reusing the commit-back pattern from
+# wiki-generate-reusable.yml.
+
+on:
+  workflow_call:
+    inputs:
+      # Directory (relative to the target repo root) the generator runs
+      # against / resolves other paths from. Defaults to repo root.
+      working_directory:
+        required: false
+        type: string
+        default: '.'
+      # Path to an OpenAPI/Swagger spec (json or yaml), relative to
+      # working_directory. Required when endpoint_source is "spec".
+      spec_path:
+        required: false
+        type: string
+        default: ''
+      # Which source the collection is built from:
+      #   spec       - convert an OpenAPI/Swagger document (spec_path)
+      #   extractors - use the wiki endpoint inventory (endpoints.generated.json)
+      endpoint_source:
+        required: false
+        type: string
+        default: spec
+      # Where the generated collection is written / committed, relative to
+      # working_directory.
+      output_path:
+        required: false
+        type: string
+        default: postman/collection.json
+      # Path to the endpoint-extractor inventory, relative to working_directory,
+      # used only when endpoint_source == extractors.
+      endpoints_inventory_path:
+        required: false
+        type: string
+        default: docs/src/data/endpoints.generated.json
+      # Collection name override (optional).
+      collection_name:
+        required: false
+        type: string
+        default: ''
+      control_repo:
+        required: false
+        type: string
+        default: HeyItsChloe/agent-ops
+      control_repo_ref:
+        required: false
+        type: string
+        default: main
+    secrets:
+      GH_APP_ID:
+        required: true
+      GH_APP_PRIVATE_KEY:
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: postman-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  generate-validate-commit:
+    runs-on: ubuntu-latest
+    # Needed to push the generated collection back to the target repo's
+    # default branch when it changed - same intersection rule
+    # wiki-generate-reusable.yml documents.
+    permissions:
+      contents: write
+    outputs:
+      changed: ${{ steps.commit.outputs.changed }}
+    steps:
+      - name: Checkout target repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # agent-ops lives under a different account than most target repos, so
+      # reading scripts/postman needs its own checkout + GH App token, exactly
+      # as wiki-generate-reusable.yml does.
+      - name: Parse control repo owner/name
+        id: control
+        run: |
+          IFS='/' read -r OWNER NAME <<< "${{ inputs.control_repo }}"
+          echo "owner=$OWNER" >> "$GITHUB_OUTPUT"
+          echo "name=$NAME" >> "$GITHUB_OUTPUT"
+      - uses: actions/create-github-app-token@v1
+        id: control-repo-token
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          owner: ${{ steps.control.outputs.owner }}
+          repositories: ${{ steps.control.outputs.name }}
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.control_repo }}
+          ref: ${{ inputs.control_repo_ref }}
+          token: ${{ steps.control-repo-token.outputs.token }}
+          path: .postman-control
+      - name: Exclude .postman-control from git
+        run: echo ".postman-control/" >> .git/info/exclude
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install generator script dependencies
+        run: npm install --no-audit --no-fund
+        working-directory: .postman-control/scripts
+
+      - name: Generate Postman collection
+        env:
+          PM_REPO_ROOT: ${{ github.workspace }}/${{ inputs.working_directory }}
+          PM_SOURCE: ${{ inputs.endpoint_source }}
+          PM_SPEC_PATH: ${{ inputs.spec_path }}
+          PM_ENDPOINT_SOURCE: ${{ inputs.endpoints_inventory_path }}
+          PM_OUTPUT: ${{ inputs.output_path }}
+          PM_NAME: ${{ inputs.collection_name }}
+        run: node "$GITHUB_WORKSPACE/.postman-control/scripts/postman/generate.mjs"
+
+      - name: Validate generated collection (Postman v2.1 schema)
+        run: |
+          node "$GITHUB_WORKSPACE/.postman-control/scripts/postman/validate.mjs" \
+            "${{ github.workspace }}/${{ inputs.working_directory }}/${{ inputs.output_path }}"
+
+      - name: Commit generated collection when changed
+        id: commit
+        run: |
+          git config user.name "postman-generator[bot]"
+          git config user.email "postman-generator[bot]@users.noreply.github.com"
+          git add "${{ inputs.working_directory }}/${{ inputs.output_path }}"
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "No collection changes to commit (API unchanged)."
+          else
+            git commit -m "chore(postman): regenerate API collection
+
+          Automated update from scripts/postman/generate.mjs (agent-ops issue #12) -
+          the generated Postman v2.1 collection changed because an endpoint was
+          added/removed/modified. Output is deterministic, so this only fires on a
+          real API change."
+            git push origin HEAD:${{ github.ref_name }}
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          fi

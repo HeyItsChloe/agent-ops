@@ -1,0 +1,49 @@
+[
+  {
+    "slug": "orders",
+    "title": "Orders",
+    "description": "Order management endpoints.",
+    "endpoints": [
+      {
+        "slug": "get-orders",
+        "method": "GET",
+        "path": "/api/orders",
+        "title": "List Orders",
+        "description": "List all orders.",
+        "auth": "session",
+        "params": [
+          { "name": "status", "type": "string", "required": false, "in": "query" }
+        ],
+        "liveTestable": false,
+        "sourceFile": "web/backend/routes/orders/index.js"
+      },
+      {
+        "slug": "post-orders",
+        "method": "POST",
+        "path": "/api/orders",
+        "title": "Create Order",
+        "description": "Create a new order.",
+        "auth": "session",
+        "params": [
+          { "name": "customerId", "type": "string", "required": true, "in": "body" },
+          { "name": "total", "type": "number", "required": true, "in": "body" }
+        ],
+        "liveTestable": false,
+        "sourceFile": "web/backend/routes/orders/index.js"
+      },
+      {
+        "slug": "get-orders-id",
+        "method": "GET",
+        "path": "/api/orders/:id",
+        "title": "Get Order",
+        "description": "Fetch a single order.",
+        "auth": "session",
+        "params": [
+          { "name": "id", "type": "string", "required": true, "in": "path" }
+        ],
+        "liveTestable": false,
+        "sourceFile": "web/backend/routes/orders/index.js"
+      }
+    ]
+  }
+]
