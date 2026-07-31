@@ -9,7 +9,8 @@
     "copy-registry": "mkdir -p dist/registry && cp src/registry/pipelines.yaml dist/registry/",
     "start": "node dist/index.js",
     "dev": "tsx watch src/index.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test --test-reporter spec 'src/**/*.test.ts'"
   },
   "dependencies": {
     "@heyitschloe/pipeline-orchestrator": "^0.1.0",

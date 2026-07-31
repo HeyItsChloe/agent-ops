@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/HeyItsChloe/agent-ops/skills/outreach/config.schema.json",
+  "title": "Outreach email skill config",
+  "description": "Configuration passed to any skills/outreach/<skill>/SKILL.md at render time. The skill owns the email STRUCTURE and VOICE; this config supplies the SUBSTITUTABLE values (tone, CTA, sender identity, extra variables). Mirrors OutreachSkillConfig in orchestrator/src/jobs/outreach/types.ts.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["skill", "tone", "cta", "sender"],
+  "properties": {
+    "skill": {
+      "type": "string",
+      "enum": ["outreach-email", "follow-up-email", "partnership-email"],
+      "description": "Which skill under skills/outreach/ renders the email."
+    },
+    "tone": {
+      "type": "string",
+      "description": "Desired voice, e.g. 'warm, concise, professional'.",
+      "examples": ["warm, concise, professional", "direct and technical"]
+    },
+    "cta": {
+      "type": "string",
+      "description": "The single call to action the email closes on.",
+      "examples": ["a brief 15-minute intro call", "a quick reply if this is relevant"]
+    },
+    "sender": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "company", "email"],
+      "description": "Sender identity the skill signs off as. The Gmail draft is created under `email`.",
+      "properties": {
+        "name": { "type": "string" },
+        "company": { "type": "string" },
+        "role": { "type": "string" },
+        "email": { "type": "string", "format": "email", "description": "The account the draft is created under (matches GMAIL_SENDER)." },
+        "signature": { "type": "string", "description": "Verbatim sign-off block appended by the skill if provided." }
+      }
+    },
+    "variables": {
+      "type": "object",
+      "additionalProperties": { "type": "string" },
+      "description": "Arbitrary extra template variables a skill may reference (product name, offer, event, etc.). Never used to inject facts about the recipient."
+    }
+  }
+}
