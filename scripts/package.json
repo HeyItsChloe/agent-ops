@@ -3,7 +3,10 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "Dependencies for scripts/wiki-generate.mjs and scripts/wiki-extractors/*.mjs (agent-ops issue #286).",
+  "description": "Dependencies for scripts/wiki-generate.mjs, scripts/wiki-extractors/*.mjs (agent-ops issue #286), and scripts/e2e/*.mjs (agent-ops issue #10).",
+  "scripts": {
+    "test": "node --test \"e2e/*.test.mjs\""
+  },
   "dependencies": {
     "yaml": "^2.5.0"
   }
