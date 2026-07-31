@@ -19,6 +19,7 @@ import { join, basename } from 'node:path';
 import { parse } from 'yaml';
 import { globSync } from './glob.mjs';
 import { mergeEntries, readJsonSidecar, writeJsonSidecar, writeGeneratedTsWrapper, hashSource } from './merge.mjs';
+import { applyMetadata } from './metadata.mjs';
 
 /** Splits a `---`-delimited YAML frontmatter block from the markdown body. */
 export function splitFrontmatter(raw) {
@@ -40,31 +41,45 @@ export async function extract({ config, outputPaths }) {
   const dir = join(outputPaths.contentDir, opts.dir ?? 'features');
   const files = globSync('*.md', { cwd: dir });
 
-  const incoming = files
-    .map((f) => {
-      const raw = readFileSync(join(dir, f), 'utf8');
-      const { data } = splitFrontmatter(raw);
-      const slug = basename(f, '.md');
-      const impl = data.implements ?? {};
-      return {
-        slug,
-        title: data.title ?? slug,
-        summary: data.summary ?? '',
-        order: typeof data.order === 'number' ? data.order : 999,
-        status: data.status ?? 'stable',
-        implements: {
-          workflows: impl.workflows ?? [],
-          skills: impl.skills ?? [],
-          dependencies: impl.dependencies ?? [],
-          integrations: impl.integrations ?? [],
-        },
-        runWith: data.runWith ?? [],
-        tradeoffs: data.tradeoffs ?? [],
-        notes: normNotes(data.notes),
-        contentFile: `features/${slug}.md`,
-        _sourceHash: hashSource(raw),
-      };
-    })
+  // Parse each authored file into a raw record. Missing summary/order/status
+  // are left UNDEFINED here (not defaulted to ''/999/'stable') so the
+  // deterministic metadata layer below can derive them from the entity's own
+  // content; any authored value is passed through untouched and always wins.
+  const parsed = files.map((f) => {
+    const raw = readFileSync(join(dir, f), 'utf8');
+    const { data, body } = splitFrontmatter(raw);
+    const slug = basename(f, '.md');
+    const impl = data.implements ?? {};
+    return {
+      slug,
+      title: data.title ?? slug,
+      // Authored values pass through; absent ones stay undefined for derivation.
+      summary: data.summary,
+      order: typeof data.order === 'number' ? data.order : undefined,
+      status: data.status,
+      implements: {
+        workflows: impl.workflows ?? [],
+        skills: impl.skills ?? [],
+        dependencies: impl.dependencies ?? [],
+        integrations: impl.integrations ?? [],
+      },
+      runWith: data.runWith ?? [],
+      tradeoffs: data.tradeoffs ?? [],
+      notes: normNotes(data.notes),
+      contentFile: `features/${slug}.md`,
+      // Kept only to feed deterministic summary derivation; stripped below so
+      // it never lands in the generated sidecar / public FeatureDoc type.
+      body,
+      _sourceHash: hashSource(raw),
+    };
+  });
+
+  // Deterministically fill any MISSING metadata (summary from the body's
+  // first paragraph, a stable order, a sensible default status) so a new
+  // feature file with no frontmatter still appears correctly — while any
+  // authored summary/order/status above overrides the derived value.
+  const incoming = applyMetadata(parsed, { defaultStatus: opts.defaultStatus })
+    .map(({ body, ...entry }) => entry) // drop the transient body field
     .sort((a, b) => a.order - b.order);
 
   const sidecarPath = join(outputPaths.dataDir, 'features.generated.json');

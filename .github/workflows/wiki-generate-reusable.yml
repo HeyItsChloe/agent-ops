@@ -177,6 +177,16 @@ jobs:
         with:
           ref: ${{ github.ref_name }}
 
+      # NOTE (agent-ops issue #8, subtask 1b): a brand-new consuming repo must
+      # have its Pages build type set to "GitHub Actions" (build_type=workflow)
+      # before the deploy-pages step below can publish. That is now automated
+      # by scripts/setup/enable-pages.mjs, run ONCE at onboarding time rather
+      # than on every wiki build (it needs a token with pages:write for the
+      # *target* repo, which onboarding already holds). See
+      # docs/automation-audit.md §"Pages source enablement" for the exact
+      # onboarding invocation. Wiring it into this per-build deploy job was
+      # deliberately avoided: it would require a cross-account GH App token in
+      # this job purely to re-check an already-set toggle on every run.
       - uses: actions/setup-node@v4
         with:
           node-version: '22'

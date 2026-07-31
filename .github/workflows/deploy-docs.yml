@@ -9,9 +9,16 @@ name: deploy-docs
 # failure). Folding docs-site into main sidesteps that rather than
 # fighting the environment's branch-protection rule.
 #
-# One-time manual setup required before this can succeed: repo Settings ->
-# Pages -> Build and deployment -> Source: "GitHub Actions" (no MCP/API
-# tool in this session's toolset can toggle that setting).
+# One-time Pages setup before this can succeed: the repo's Pages build type
+# must be "GitHub Actions" (Settings -> Pages -> Build and deployment ->
+# Source). This is now automated (agent-ops issue #8, subtask 1b) — run it
+# once at onboarding instead of clicking through the UI:
+#
+#   GITHUB_TOKEN=<token with pages:write> \
+#     node scripts/setup/enable-pages.mjs --slug <owner>/<repo>
+#
+# The script is idempotent (no-op when already set). See
+# docs/automation-audit.md for the full manual-step inventory.
 
 on:
   push:
