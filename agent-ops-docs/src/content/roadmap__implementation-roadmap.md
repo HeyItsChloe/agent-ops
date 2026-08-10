@@ -17,9 +17,9 @@ Each phase ends with a checkpoint: don't move to the next phase until the checkp
 - [ ] Qodo account — not needed; using self-hosted `PR-Agent` + `qodo-cover` instead (BYOK against the Gemini/Claude gateway).
 - [x] Chat front end for the pilot: **claude.ai** — connect the MCP server as a Claude connector rather than via ChatGPT Developer Mode.
 - [x] **(Revised) GitHub App, not a PAT — done.** Custom GitHub App `pipeline-orchestrator-management` created with Issues/PRs/Contents permissions, installed as two separate installations: one on the `heyitschloe` personal account, one on the `11thandOrange` organization (covering `BusyBuddy_v2`). App ID, private key, and both installation IDs live in GitHub Secrets, never in chat or in this repo.
-- [ ] **Retire the OpenHands pipeline on BusyBuddy_v2** — still outstanding, blocked on this session's repo scope (can't touch `BusyBuddy_v2` directly from here regardless of the App being installed there now). Do this in a new session scoped to that repo — disable/remove the OpenHands automation registration (ID `3cfefdb0-a1bc-4f26-bcc6-4136ff0fb4da`), stop using the `ready-to-implement` label trigger, and turn off the callmebot WhatsApp notifier step so the two pipelines don't fire on the same issue.
+- [~] **Retire the OpenHands pipeline on BusyBuddy_v2** — **done in code** (BusyBuddy_v2#325 removed the OpenHands workflow and agent collection, so it no longer fires on incoming issues). Only manual, out-of-repo cleanup remains: disable the OpenHands Cloud automation registration (ID `3cfefdb0-a1bc-4f26-bcc6-4136ff0fb4da`), delete the `ready-to-implement`/`ready-to-implement-legacy` labels, and remove the `OPENHANDS_API_KEY`/`OPENHANDS_HOST` repo secrets.
 
-**Checkpoint — met, except OpenHands retirement:** GCP project with billing linked and a scoped service account exists, Gemini API key confirmed working (real completions returned), the GitHub App is created and installed on both accounts. BusyBuddy_v2's old automation is not yet disabled — carries into Phase 3.
+**Checkpoint — met; OpenHands retirement done in code (manual cleanup pending):** GCP project with billing linked and a scoped service account exists, Gemini API key confirmed working (real completions returned), the GitHub App is created and installed on both accounts. BusyBuddy_v2's old automation was removed in-repo via BusyBuddy_v2#325; only the manual registration/label/secret cleanup carries into Phase 3.
 
 ---
 
@@ -74,7 +74,7 @@ Validated live against `11thandOrange/BusyBuddy_v2`. Getting here took several r
 
 **Checkpoint — met:** real GitHub sub-issues get created with subtask content in their descriptions, the parent issue gets labeled `approach-ready`, and a retried plan run doesn't duplicate sub-issues.
 
-**Still outstanding from this phase's original scope, not blocking:** the OpenHands retirement on BusyBuddy_v2 (Phase 0) hasn't happened yet; the curl/`@dev-agent` trigger paths and the commenter-allowlist check haven't been separately exercised live (only the label-triggered path has been proven end to end).
+**Still outstanding from this phase's original scope, not blocking:** the OpenHands retirement on BusyBuddy_v2 (Phase 0) is done in code (BusyBuddy_v2#325) with only manual registration/label/secret cleanup pending; the curl/`@dev-agent` trigger paths and the commenter-allowlist check haven't been separately exercised live (only the label-triggered path has been proven end to end).
 
 ---
 
