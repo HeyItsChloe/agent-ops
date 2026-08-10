@@ -17,6 +17,7 @@ import {
   type GitHubAppConfig,
 } from "@heyitschloe/pipeline-orchestrator";
 import { createJobSearchPipelineHandler } from "./handlers/job_search_pipeline.js";
+import { createPaymentProcessorCrawlerHandler } from "./handlers/payment_processor_crawler.js";
 import { handleApplicantProfileLookup, handleApplicationsLookup } from "./triggers/applications_lookup.js";
 import { handleGenerateAnswer } from "./triggers/generate_answer.js";
 import type { ApplicantProfile } from "./types.js";
@@ -114,6 +115,18 @@ const personalPipelineDeps = {
   applicantProfile,
 };
 
+// Payment-processor crawler (Epic 7) deps. Reuses the same open-web search
+// provider creds as the job crawler's scrapeAny (scrapeAnySourcing) and the
+// same per-hostname saved-session dir (siteSessions) — an operator that has
+// job search wired gets processor discovery/fetch for free. All optional:
+// seeds-only, unauthenticated crawling needs neither.
+const crawlerDeps = {
+  discovery: scrapeAnySourcing
+    ? { serpapi: scrapeAnySourcing.serpapi, claudeWebSearch: scrapeAnySourcing.claudeWebSearch, jsearch: scrapeAnySourcing.jsearch }
+    : undefined,
+  siteSessions,
+};
+
 const app = createServer(
   {
     port,
@@ -128,6 +141,7 @@ const app = createServer(
   [
     createDevTicketPipelineHandler({ githubApp, installationId: devInstallationId }),
     createJobSearchPipelineHandler(personalPipelineDeps),
+    createPaymentProcessorCrawlerHandler(crawlerDeps),
   ],
 );
 

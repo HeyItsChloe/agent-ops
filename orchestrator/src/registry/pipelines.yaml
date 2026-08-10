@@ -87,3 +87,30 @@
     strategy: scrapeOne
     max_results: 10
     search_provider: serpapi
+
+- name: payment-processor-crawler
+  handler: payment-processor-crawler
+  # No skill fetch involved — the crawler is pure orchestrator code, not a
+  # model-driven skill pipeline like resume-job-applier. skill_path is
+  # required by the registry shape though, so it points at a docs stub; it is
+  # never read at runtime for this pipeline (in-process, no scaffold regen).
+  skill_path: docs/payment-processor-crawler
+  execution:
+    kind: in-process
+  triggers:
+    # POST /trigger { "pipeline": "payment-processor-crawler", ... } invokes
+    # it directly by name; http_kind gives it a stable alias too, mirroring
+    # resume-job-applier's http_kind.
+    http_kind: payment-crawler
+  params:
+    # These ARE the crawler config (CrawlerConfigSchema) — validated by the
+    # handler before use. Per-call overrides go in the trigger's `input`.
+    seeds: []
+    keywords:
+      - payment processor
+      - merchant acquirer
+      - payment gateway
+    maxPages: 50
+    maxDomains: 25
+    perHostDelayMs: 1000
+    dryRun: false
