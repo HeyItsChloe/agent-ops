@@ -1,0 +1,119 @@
+name: email-reusable
+
+# Shared email pipeline (Epic 6). Lives here, once, centrally — any repo in the
+# fleet sends mail by calling the deployed orchestrator's POST /email instead of
+# holding provider credentials itself. Provider creds (Gmail OAuth, Mailchimp
+# Transactional) stay ON the orchestrator; the caller passes only the shared
+# secret + the message fields. See templates/email-caller.yml for the thin
+# caller each app repo copies.
+#
+# The orchestrator validates the request against the shared email contract and
+# picks the backend by `provider`. This workflow just marshals inputs into the
+# JSON body /email expects and authenticates with the same
+# x-orchestrator-secret header every first-party orchestrator endpoint uses.
+
+on:
+  workflow_call:
+    inputs:
+      provider:
+        description: Backend to deliver through — "gmail" or "mailchimp".
+        required: true
+        type: string
+      to:
+        description: Recipient address(es), comma-separated for more than one.
+        required: true
+        type: string
+      subject:
+        description: Message subject. Required by the orchestrator for the gmail provider.
+        required: false
+        type: string
+        default: ""
+      text:
+        description: Plain-text body.
+        required: false
+        type: string
+        default: ""
+      html:
+        description: HTML body.
+        required: false
+        type: string
+        default: ""
+      template:
+        description: Stored Mailchimp/Mandrill template name (mailchimp provider only).
+        required: false
+        type: string
+        default: ""
+      template_vars:
+        description: Template merge variables as a JSON object string (mailchimp only), e.g. '{"name":"Chloe"}'.
+        required: false
+        type: string
+        default: ""
+    secrets:
+      ORCHESTRATOR_URL:
+        description: Base URL of the deployed orchestrator (no trailing /email).
+        required: true
+      ORCHESTRATOR_SHARED_SECRET:
+        description: Shared secret for the x-orchestrator-secret header.
+        required: true
+
+jobs:
+  send-email:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Send email via orchestrator
+        env:
+          ORCHESTRATOR_URL: ${{ secrets.ORCHESTRATOR_URL }}
+          ORCHESTRATOR_SHARED_SECRET: ${{ secrets.ORCHESTRATOR_SHARED_SECRET }}
+          # Inputs go through the environment (not string-interpolated into the
+          # shell) so arbitrary body content can never break out of the command.
+          EMAIL_PROVIDER: ${{ inputs.provider }}
+          EMAIL_TO: ${{ inputs.to }}
+          EMAIL_SUBJECT: ${{ inputs.subject }}
+          EMAIL_TEXT: ${{ inputs.text }}
+          EMAIL_HTML: ${{ inputs.html }}
+          EMAIL_TEMPLATE: ${{ inputs.template }}
+          EMAIL_TEMPLATE_VARS: ${{ inputs.template_vars }}
+          # X-Repo lets the orchestrator's per-repo rate limit / allowlist see
+          # which repo is calling.
+          EMAIL_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          # Build the JSON body with jq so every field is correctly escaped.
+          # `to` is a comma-separated list -> split into a trimmed, non-empty
+          # array. Optional string fields are included only when non-empty;
+          # template_vars is parsed as JSON (default "" => omitted).
+          body="$(jq -n \
+            --arg provider "$EMAIL_PROVIDER" \
+            --arg to "$EMAIL_TO" \
+            --arg subject "$EMAIL_SUBJECT" \
+            --arg text "$EMAIL_TEXT" \
+            --arg html "$EMAIL_HTML" \
+            --arg template "$EMAIL_TEMPLATE" \
+            --arg template_vars "$EMAIL_TEMPLATE_VARS" \
+            '
+            {
+              provider: $provider,
+              to: ($to | split(",") | map(gsub("^\\s+|\\s+$"; "")) | map(select(length > 0)))
+            }
+            + (if ($subject | length) > 0 then { subject: $subject } else {} end)
+            + (if ($text | length) > 0 then { text: $text } else {} end)
+            + (if ($html | length) > 0 then { html: $html } else {} end)
+            + (if ($template | length) > 0 then { template: $template } else {} end)
+            + (if ($template_vars | length) > 0 then { templateVars: ($template_vars | fromjson) } else {} end)
+            ')"
+
+          # -f: fail (non-zero exit) on any non-2xx response, so a rejected send
+          # fails the job. -sS keeps curl quiet but still prints errors.
+          # Response body (secret-free by contract) is shown for debugging.
+          http_code="$(curl -sS -f \
+            -X POST "$ORCHESTRATOR_URL/email" \
+            -H "x-orchestrator-secret: $ORCHESTRATOR_SHARED_SECRET" \
+            -H "X-Repo: $EMAIL_REPO" \
+            -H "Content-Type: application/json" \
+            -d "$body" \
+            -w '\n%{http_code}' | tail -n1)"
+
+          echo "orchestrator responded with HTTP $http_code"
