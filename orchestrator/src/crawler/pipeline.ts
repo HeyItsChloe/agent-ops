@@ -17,6 +17,7 @@ import { extractProcessorContact } from "./contact.js";
 import { PageFetcher } from "./fetch.js";
 import { stampRecord } from "./provenance.js";
 import { dedupe } from "./normalize.js";
+import { appendProcessorRecords, type CrawlOutcome, type ProcessorStoreConfig } from "./store.js";
 import type { CrawlerConfig, ProcessorRecord } from "./types.js";
 import type { SiteSessionsConfig } from "../integrations/site_sessions.js";
 import { logger } from "../logging.js";
@@ -27,6 +28,9 @@ export interface CrawlerDeps {
   discovery?: DiscoveryDeps;
   // Per-hostname Playwright saved sessions, exactly as scrapeAll uses.
   siteSessions?: SiteSessionsConfig;
+  // the-store persistence target (Epic 8). Optional and fail-open: when unset
+  // the crawl still runs and returns records, it just doesn't persist them.
+  theStore?: ProcessorStoreConfig;
 }
 
 export interface CrawlerRunContext {
@@ -101,8 +105,35 @@ export async function runCrawler(config: CrawlerConfig, deps: CrawlerDeps, ctx: 
   const deduped = dedupe(records);
 
   log.info("crawler run complete", { discovered: candidates.length, fetched, failed, rawRecords: records.length, dedupedRecords: deduped.length });
+
+  // Epic 8: persist the deduped records as dated rows in the-store. Only for a
+  // real (non-dryRun) run with the-store configured. The observationDate is
+  // the one captured once at the top of the run (ctx) — never a fresh clock
+  // read here. Fail-open: a persistence error is logged, not thrown, so the
+  // caller still gets the records back.
+  if (!config.dryRun && deps.theStore) {
+    const outcome = computeCrawlOutcome(deduped.length, fetched, failed);
+    try {
+      await appendProcessorRecords(deps.theStore, deduped, ctx.observationDate, outcome);
+    } catch (err) {
+      log.warn("the-store persistence failed — records returned but not persisted", { error: String(err), outcome });
+    }
+  }
+
   return {
     records: deduped,
     summary: { discovered: candidates.length, fetched, failed, records: deduped.length, dryRun: false },
   };
+}
+
+// Map a run's counts to the persistence outcome (Ticket 37). No records means
+// nothing new to write (or an outright failure when everything we tried to
+// fetch errored); records with some failures is a partial run; records with
+// none failed is a clean success. Both partial and success_new strictly add
+// rows, so both write — the-store's own guards re-check that before any write.
+function computeCrawlOutcome(recordCount: number, fetched: number, failed: number): CrawlOutcome {
+  if (recordCount === 0) {
+    return failed > 0 && fetched === 0 ? "failed" : "success_no_new";
+  }
+  return failed > 0 ? "partial" : "success_new";
 }
