@@ -121,11 +121,27 @@ const personalPipelineDeps = {
 // same per-hostname saved-session dir (siteSessions) — an operator that has
 // job search wired gets processor discovery/fetch for free. All optional:
 // seeds-only, unauthenticated crawling needs neither.
+// the-store target for the crawler's accumulated CSV (Epic 8). Reuses the
+// same THE_STORE_OWNER/REPO/BRANCH + personal installation as the job CSV,
+// with its own path (THE_STORE_PROCESSORS_PATH). Undefined when the-store is
+// unset — the crawler then runs and returns records without persisting.
+const theStoreProcessors =
+  process.env.THE_STORE_OWNER && process.env.THE_STORE_REPO
+    ? {
+        githubApp,
+        installationId: personalInstallationId,
+        owner: process.env.THE_STORE_OWNER,
+        repo: process.env.THE_STORE_REPO,
+        branch: process.env.THE_STORE_BRANCH ?? "main",
+        path: process.env.THE_STORE_PROCESSORS_PATH ?? "payment-processors.csv",
+      }
+    : undefined;
 const crawlerDeps = {
   discovery: scrapeAnySourcing
     ? { serpapi: scrapeAnySourcing.serpapi, claudeWebSearch: scrapeAnySourcing.claudeWebSearch, jsearch: scrapeAnySourcing.jsearch }
     : undefined,
   siteSessions,
+  theStore: theStoreProcessors,
 };
 
 const app = createServer(
