@@ -17,7 +17,8 @@ import { extractProcessorContact } from "./contact.js";
 import { PageFetcher } from "./fetch.js";
 import { stampRecord } from "./provenance.js";
 import { dedupe } from "./normalize.js";
-import { appendProcessorRecords, type CrawlOutcome, type ProcessorStoreConfig } from "./store.js";
+import { appendProcessorRecords, readExistingProcessorRows, type CrawlOutcome, type ProcessorStoreConfig } from "./store.js";
+import { buildReport, summarizeReport, type CrawlReport, type CrawlStats } from "./report.js";
 import type { CrawlerConfig, ProcessorRecord } from "./types.js";
 import type { SiteSessionsConfig } from "../integrations/site_sessions.js";
 import { logger } from "../logging.js";
@@ -51,6 +52,20 @@ export interface CrawlerRunResult {
     records: number;
     dryRun: boolean;
   };
+  // Epic 9: dry-run comparison + change reporting. Attached to BOTH dry and
+  // real runs. Dry runs report only; real runs report AND persist.
+  report: CrawlReport;
+}
+
+// Resolve the low-confidence threshold: env override wins (CRAWLER_LOW_CONFIDENCE_THRESHOLD),
+// else the validated config value (schema default 0.5).
+function resolveLowConfidenceThreshold(config: CrawlerConfig): number {
+  const raw = process.env.CRAWLER_LOW_CONFIDENCE_THRESHOLD;
+  if (raw !== undefined && raw.trim() !== "") {
+    const parsed = Number(raw);
+    if (Number.isFinite(parsed) && parsed >= 0 && parsed <= 1) return parsed;
+  }
+  return config.lowConfidenceThreshold;
 }
 
 /**
@@ -62,16 +77,26 @@ export async function runCrawler(config: CrawlerConfig, deps: CrawlerDeps, ctx: 
   const log = logger.withContext({ correlationId: ctx.correlationId, pipeline: "payment-processor-crawler" });
   log.info("crawler run starting", { requestedBy: ctx.requestedBy, seeds: config.seeds.length, dryRun: config.dryRun });
 
+  const threshold = resolveLowConfidenceThreshold(config);
   const candidates = await discoverProcessors(config, deps.discovery);
 
   // dryRun stops before any network fetch — the run proves discovery + wiring
   // and returns an empty record set with a summary. This is what lets the
   // pipeline be exercised here (and in CI) with no live keys and no real HTTP.
+  //
+  // Ticket 39: even in dry run we still READ the existing the-store CSV (via
+  // store.ts's single read path — no write) and build the comparison report so
+  // the caller gets change visibility. The dryRun -> skip write guard below is
+  // untouched: we return before the persistence block, so nothing is written.
   if (config.dryRun) {
+    const existingRows = await readExistingProcessorRows(deps.theStore);
+    const report = buildReport([], existingRows, { pages_crawled: 0, failed_pages: 0 }, threshold);
     log.info("crawler dry run — skipping fetch/extract", { discovered: candidates.length });
+    log.info("crawler report (dry run)", { report: summarizeReport(report), proposedChanges: report.proposed_changes.length });
     return {
       records: [],
       summary: { discovered: candidates.length, fetched: 0, failed: 0, records: 0, dryRun: true },
+      report,
     };
   }
 
@@ -106,6 +131,21 @@ export async function runCrawler(config: CrawlerConfig, deps: CrawlerDeps, ctx: 
 
   log.info("crawler run complete", { discovered: candidates.length, fetched, failed, rawRecords: records.length, dedupedRecords: deduped.length });
 
+  // Ticket 40: build the comparison report for a real run too, reading the
+  // existing the-store rows via the same single read path used by dry runs.
+  // pages_crawled/failed_pages are the fetch counters threaded out above.
+  // Fail-open: a report/read hiccup must not sink the run's records.
+  const stats: CrawlStats = { pages_crawled: fetched, failed_pages: failed };
+  let report: CrawlReport;
+  try {
+    const existingRows = await readExistingProcessorRows(deps.theStore);
+    report = buildReport(deduped, existingRows, stats, threshold);
+  } catch (err) {
+    log.warn("crawler report build failed — returning records without comparison", { error: String(err) });
+    report = buildReport(deduped, [], stats, threshold);
+  }
+  log.info("crawler report", { report: summarizeReport(report), proposedChanges: report.proposed_changes.length });
+
   // Epic 8: persist the deduped records as dated rows in the-store. Only for a
   // real (non-dryRun) run with the-store configured. The observationDate is
   // the one captured once at the top of the run (ctx) — never a fresh clock
@@ -123,6 +163,7 @@ export async function runCrawler(config: CrawlerConfig, deps: CrawlerDeps, ctx: 
   return {
     records: deduped,
     summary: { discovered: candidates.length, fetched, failed, records: deduped.length, dryRun: false },
+    report,
   };
 }
 

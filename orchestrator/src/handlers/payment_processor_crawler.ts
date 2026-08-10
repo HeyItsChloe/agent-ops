@@ -25,6 +25,7 @@ const InputSchema = z
     maxDomains: z.number().int().positive().optional(),
     perHostDelayMs: z.number().int().nonnegative().optional(),
     dryRun: z.boolean().optional(),
+    lowConfidenceThreshold: z.number().min(0).max(1).optional(),
     searchProvider: z.enum(["serpapi", "claude_web_search", "jsearch"]).optional(),
   })
   .default({});

@@ -85,6 +85,10 @@ export const CrawlerConfigSchema = z.object({
   // record set plus a logged summary. Lets the pipeline compile-and-run-clean
   // here without live keys or real network access.
   dryRun: z.boolean().default(false),
+  // Confidence bar (Epic 9): records below this are flagged low-confidence in
+  // the crawl report. Configurable here; the pipeline also honours the
+  // CRAWLER_LOW_CONFIDENCE_THRESHOLD env var as an override.
+  lowConfidenceThreshold: z.number().min(0).max(1).default(0.5),
   // Optional discovery search provider (reuses scrapeAny's providers). Omit
   // to rely on seeds alone — a live key is required for the provider path.
   searchProvider: z.enum(["serpapi", "claude_web_search", "jsearch"]).optional(),

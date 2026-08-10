@@ -63,7 +63,7 @@ function csvEscape(value: string): string {
   return /[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value;
 }
 
-function parseCsv(content: string): string[][] {
+export function parseCsv(content: string): string[][] {
   const rows: string[][] = [];
   let row: string[] = [];
   let field = "";
@@ -252,6 +252,29 @@ export function planProcessorWrite(
   }
 
   return { write: true, reason: `${crawlOutcome} -> write (+${mergedCount - existingCount} rows)`, content: merged };
+}
+
+/**
+ * Read + parse the existing the-store CSV into rows (Epic 9 dry-run/reporting).
+ * This is the SINGLE read path — it reuses the same getFileContents primitive
+ * and the same parseCsv the write path uses, so reporting never introduces a
+ * second, drifting CSV reader. Returns the parsed rows INCLUDING the header row
+ * (index 0), or an empty array when the-store is unconfigured or the file
+ * doesn't exist yet. Fail-open: never throws — a missing/unreadable file just
+ * yields no existing rows (so everything looks "new"), matching the append
+ * path's own null-on-miss handling.
+ */
+export async function readExistingProcessorRows(config: ProcessorStoreConfig | undefined): Promise<string[][]> {
+  if (!config) return [];
+  let content: string | null;
+  try {
+    const token = await getInstallationToken(config.githubApp, config.installationId);
+    content = await getFileContents(token, config.owner, config.repo, config.path, config.branch);
+  } catch {
+    content = null; // unconfigured token, file absent, or transient read error
+  }
+  if (!content || content.trim().length === 0) return [];
+  return parseCsv(content);
 }
 
 /**
