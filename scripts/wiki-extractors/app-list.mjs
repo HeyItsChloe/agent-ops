@@ -10,7 +10,7 @@
 
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve, join } from 'node:path';
-import { mergeEntries, readJsonSidecar, writeJsonSidecar, writeGeneratedTsWrapper, hashSource } from './merge.mjs';
+import { mergeEntries, readJsonSidecar, writeJsonSidecar, writeGeneratedTsWrapper, hashSource, readAuthoredItems, overlayAuthored } from './merge.mjs';
 
 /** Extracts the source text of `const <name> = <literal>` by balancing brackets from the first opening bracket found. */
 function extractLiteral(src, exportName) {
@@ -153,6 +153,7 @@ export async function extract({ repoRoot, config, outputPaths }) {
   const sidecarPath = join(outputPaths.dataDir, 'apps.generated.json');
   const existing = readJsonSidecar(sidecarPath, []);
   const result = mergeEntries(existing, incoming, { key: 'slug' });
+  overlayAuthored(result.merged, readAuthoredItems(repoRoot, 'apps'), ['overview', 'keyFeatures', 'configuration', 'storefrontBehavior']);
 
   writeJsonSidecar(sidecarPath, result.merged);
   writeGeneratedTsWrapper(

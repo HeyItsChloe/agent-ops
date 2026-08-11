@@ -1,0 +1,65 @@
+# Reference template for the thin caller a managed repo needs to send mail
+# through the shared email pipeline (Epic 6). Copy this file into an app repo as
+# .github/workflows/email.yml — it stays thin: it forwards inputs to the
+# centrally-maintained email-reusable.yml in agent-ops and inherits the
+# ORCHESTRATOR_URL / ORCHESTRATOR_SHARED_SECRET secrets. Provider credentials
+# (Gmail OAuth, Mailchimp Transactional) live only on the orchestrator, never in
+# this repo — the caller only ever needs the shared secret and the message.
+#
+# `secrets: inherit` passes the calling repo's ORCHESTRATOR_URL and
+# ORCHESTRATOR_SHARED_SECRET straight through, so the app repo just sets those
+# two as repo/org secrets and never touches provider creds.
+
+name: email
+
+on:
+  workflow_dispatch:
+    inputs:
+      provider:
+        description: Backend to deliver through — "gmail" or "mailchimp".
+        required: true
+        type: string
+      to:
+        description: Recipient address(es), comma-separated for more than one.
+        required: true
+        type: string
+      subject:
+        description: Message subject (required for the gmail provider).
+        required: false
+        type: string
+        default: ""
+      text:
+        description: Plain-text body.
+        required: false
+        type: string
+        default: ""
+      html:
+        description: HTML body.
+        required: false
+        type: string
+        default: ""
+      template:
+        description: Stored Mailchimp/Mandrill template name (mailchimp provider only).
+        required: false
+        type: string
+        default: ""
+      template_vars:
+        description: Template merge variables as a JSON object string (mailchimp only).
+        required: false
+        type: string
+        default: ""
+
+jobs:
+  send:
+    permissions:
+      contents: read
+    uses: 11thandOrange/agent-ops/.github/workflows/email-reusable.yml@main
+    secrets: inherit
+    with:
+      provider: ${{ inputs.provider }}
+      to: ${{ inputs.to }}
+      subject: ${{ inputs.subject }}
+      text: ${{ inputs.text }}
+      html: ${{ inputs.html }}
+      template: ${{ inputs.template }}
+      template_vars: ${{ inputs.template_vars }}

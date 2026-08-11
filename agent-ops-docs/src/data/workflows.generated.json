@@ -119,7 +119,7 @@
         ]
       }
     ],
-    "_sourceHash": "4debaa7da225453bb94dae105597b5aaa6e282b3"
+    "_sourceHash": "a8c5d2f4ed9e524042b7f047f5bfdd1d164df910"
   },
   {
     "slug": "e2e-pipeline-reusable",
@@ -240,6 +240,26 @@
     "_sourceHash": "e051a88fb0b320fc67273a93ebfb040a2d8fe384"
   },
   {
+    "slug": "email-reusable",
+    "title": "email-reusable",
+    "file": ".github/workflows/email-reusable.yml",
+    "trigger": "workflow_call",
+    "description": "Shared email pipeline (Epic 6). Lives here, once, centrally — any repo in the\nfleet sends mail by calling the deployed orchestrator's POST /email instead of\nholding provider credentials itself. Provider creds (Gmail OAuth, Mailchimp\nTransactional) stay ON the orchestrator; the caller passes only the shared\nsecret + the message fields. See templates/email-caller.yml for the thin\ncaller each app repo copies.\n\nThe orchestrator validates the request against the shared email contract and\npicks the backend by `provider`. This workflow just marshals inputs into the\nJSON body /email expects and authenticates with the same\nx-orchestrator-secret header every first-party orchestrator endpoint uses.",
+    "jobs": [
+      {
+        "name": "send-email",
+        "runsOn": "ubuntu-latest",
+        "steps": [
+          {
+            "name": "Send email via orchestrator",
+            "detail": "run: set -euo pipefail"
+          }
+        ]
+      }
+    ],
+    "_sourceHash": "1634c7b6f259218214552b044a78d119146b2fba"
+  },
+  {
     "slug": "sync-upstream",
     "title": "sync-upstream",
     "file": ".github/workflows/sync-upstream.yml",
@@ -286,6 +306,21 @@
       }
     ],
     "_sourceHash": "7c3a313701a50e3e875aae5dadd4cedafb342a48"
+  },
+  {
+    "slug": "wiki-author",
+    "title": "wiki-author",
+    "file": ".github/workflows/wiki-author.yml",
+    "trigger": "workflow_dispatch",
+    "description": "On-demand \"draft missing docs\" run for agent-ops's own site.\n\nThe wiki generator only ever extracts facts; feature *prose* is authored.\nscripts/wiki-author.mjs is the automation path that drafts a MISSING feature\npage (one listed in wiki-content/authoring.yaml with no committed .md yet) via\nthe LiteLLM `documentation` alias. It never overwrites existing pages.\n\nThis is workflow_dispatch-only on purpose: authoring calls the model gateway,\nso it should be run deliberately, not on every push. It reuses the shared\ngenerator with author_content: true, which runs the author step, then the\nnormal extract -> commit -> build -> deploy.\n\nPrerequisites for it to actually draft (otherwise it cleanly no-ops):\n  - LITELLM_PROXY_URL and LITELLM_VIRTUAL_KEY set as repo secrets (they are,\n    via secrets: inherit - the deploy workflows already use them).\n  - The LiteLLM gateway healthy and its `documentation` alias reachable.\n  - At least one entry in wiki-content/authoring.yaml whose page is missing.",
+    "jobs": [
+      {
+        "name": "author",
+        "runsOn": "unknown",
+        "steps": []
+      }
+    ],
+    "_sourceHash": "11501f7e33bf81d9d793584fc191faaa735bfe62"
   },
   {
     "slug": "wiki-generate-reusable",
@@ -376,21 +411,6 @@
       }
     ],
     "_sourceHash": "9194edaeba1564aed6ef36a0a85ce7bfe004e1e2"
-  },
-  {
-    "slug": "wiki-author",
-    "title": "wiki-author",
-    "file": ".github/workflows/wiki-author.yml",
-    "trigger": "workflow_dispatch",
-    "description": "On-demand \"draft missing docs\" run for agent-ops's own site.\n\nThe wiki generator only ever extracts facts; feature *prose* is authored.\nscripts/wiki-author.mjs is the automation path that drafts a MISSING feature\npage (one listed in wiki-content/authoring.yaml with no committed .md yet) via\nthe LiteLLM `documentation` alias. It never overwrites existing pages.\n\nThis is workflow_dispatch-only on purpose: authoring calls the model gateway,\nso it should be run deliberately, not on every push. It reuses the shared\ngenerator with author_content: true, which runs the author step, then the\nnormal extract -> commit -> build -> deploy.\n\nPrerequisites for it to actually draft (otherwise it cleanly no-ops):\n  - LITELLM_PROXY_URL and LITELLM_VIRTUAL_KEY set as repo secrets (they are,\n    via secrets: inherit - the deploy workflows already use them).\n  - The LiteLLM gateway healthy and its `documentation` alias reachable.\n  - At least one entry in wiki-content/authoring.yaml whose page is missing.",
-    "jobs": [
-      {
-        "name": "author",
-        "runsOn": "unknown",
-        "steps": []
-      }
-    ],
-    "_sourceHash": "11501f7e33bf81d9d793584fc191faaa735bfe62"
   },
   {
     "slug": "wiki-generate",

@@ -19,6 +19,7 @@ import {
 import { createJobSearchPipelineHandler } from "./handlers/job_search_pipeline.js";
 import { handleApplicantProfileLookup, handleApplicationsLookup } from "./triggers/applications_lookup.js";
 import { handleGenerateAnswer } from "./triggers/generate_answer.js";
+import { mountEmailRoutes } from "./integrations/email/route.js";
 import type { ApplicantProfile } from "./types.js";
 
 function requireEnv(name: string): string {
@@ -138,6 +139,13 @@ if (extensionApiKey) {
   app.get("/personal-projects/:project/applicant-profile", extensionAuth(extensionApiKey), handleApplicantProfileLookup({ applicantProfile }));
   app.post("/personal-projects/:project/generate-answer", extensionAuth(extensionApiKey), handleGenerateAnswer({ liteLLM, applicantProfile }));
 }
+
+// The shared email pipeline's REST surface (Epic 6, ticket #19) — POST
+// /email, guarded by the same ORCHESTRATOR_SHARED_SECRET as the engine's own
+// endpoints. Always mounted: each provider reads its own credentials at send
+// time and returns a not-ok EmailResult if they're unset, rather than the
+// route existing only when configured.
+mountEmailRoutes(app, sharedSecret);
 
 app.listen(port, () => {
   console.log(JSON.stringify({ ts: new Date().toISOString(), level: "info", message: "agent-ops orchestrator listening", port }));
