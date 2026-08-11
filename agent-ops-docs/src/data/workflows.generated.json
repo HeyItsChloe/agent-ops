@@ -376,5 +376,35 @@
       }
     ],
     "_sourceHash": "9194edaeba1564aed6ef36a0a85ce7bfe004e1e2"
+  },
+  {
+    "slug": "wiki-author",
+    "title": "wiki-author",
+    "file": ".github/workflows/wiki-author.yml",
+    "trigger": "workflow_dispatch",
+    "description": "On-demand \"draft missing docs\" run for agent-ops's own site.\n\nThe wiki generator only ever extracts facts; feature *prose* is authored.\nscripts/wiki-author.mjs is the automation path that drafts a MISSING feature\npage (one listed in wiki-content/authoring.yaml with no committed .md yet) via\nthe LiteLLM `documentation` alias. It never overwrites existing pages.\n\nThis is workflow_dispatch-only on purpose: authoring calls the model gateway,\nso it should be run deliberately, not on every push. It reuses the shared\ngenerator with author_content: true, which runs the author step, then the\nnormal extract -> commit -> build -> deploy.\n\nPrerequisites for it to actually draft (otherwise it cleanly no-ops):\n  - LITELLM_PROXY_URL and LITELLM_VIRTUAL_KEY set as repo secrets (they are,\n    via secrets: inherit - the deploy workflows already use them).\n  - The LiteLLM gateway healthy and its `documentation` alias reachable.\n  - At least one entry in wiki-content/authoring.yaml whose page is missing.",
+    "jobs": [
+      {
+        "name": "author",
+        "runsOn": "unknown",
+        "steps": []
+      }
+    ],
+    "_sourceHash": "11501f7e33bf81d9d793584fc191faaa735bfe62"
+  },
+  {
+    "slug": "wiki-generate",
+    "title": "wiki-generate",
+    "file": ".github/workflows/wiki-generate.yml",
+    "trigger": "push (branches: [main], paths: [skills/**, .github/workflows/**, orchestrator/**, litellm/**, wiki.config.yaml, wiki-content/**, agent-ops-docs/src/content/features/**])  ·  workflow_dispatch",
+    "description": "Self-caller that wires agent-ops's OWN docs into the shared wiki generator.\n\nwiki-generate-reusable.yml is workflow_call-only, and its thin caller\n(templates/wiki-caller.yml) is a template meant to be copied into OTHER repos\n(BusyBuddy_v2, etc.) - so nothing here ever regenerated agent-ops's own\ngenerated docs data on a merge to main. This closes that loop: on a push to\nmain that touches an extractable doc source, it runs the extractors, commits\nany changed agent-ops-docs/src/data/*.generated.json back to main, then builds\nand deploys the site to GitHub Pages (the reusable does all three).\n\nTrigger paths are the generator's *inputs* only. They deliberately exclude\neverything the generator itself writes (agent-ops-docs/src/data/**,\nagent-ops-docs/src/content/*.md copies, wiki.config.generated.ts), and they\nscope authored feature edits to src/content/features/** - a directory no\nextractor ever writes to - so the generator's own commit can never re-trigger\nthis workflow. Site source/component edits keep using deploy-docs.yml.",
+    "jobs": [
+      {
+        "name": "wiki",
+        "runsOn": "unknown",
+        "steps": []
+      }
+    ],
+    "_sourceHash": "760569cc05ed420c5b9d93f9c3714b5cb58feafd"
   }
 ]
