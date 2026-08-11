@@ -66,6 +66,7 @@ virtual-key auth.
 | `.github/workflows/deploy-docs.yml` | `agent-ops-docs/` → GitHub Pages | push to `main` touching `agent-ops-docs/**`, or manual |
 | `.github/workflows/wiki-generate-reusable.yml` | *(reusable)* runs the generator, commits regenerated data, builds + deploys the site | `workflow_call` only |
 | `.github/workflows/wiki-generate.yml` | self-caller that invokes the reusable for **this** repo | push to `main` touching a doc source, or manual |
+| `.github/workflows/wiki-author.yml` | on-demand run of the optional AI authoring step (drafts missing feature pages) | manual (`workflow_dispatch`) only |
 | `.github/workflows/e2e-pipeline-reusable.yml` | *(reusable)* e2e test runner for app repos | `workflow_call` only |
 | `.github/workflows/sync-upstream.yml` | opens a PR syncing this fork with upstream | daily cron, or manual |
 
@@ -146,25 +147,27 @@ that have an application surface agent-ops doesn't.
 
 **Enabled for agent-ops:**
 
-| Extractor | Reads | Emits (key fields) | Authored or Extracted |
+| Extractor | Reads | Emits (key fields) → page | Authored or Extracted |
 | --- | --- | --- | --- |
-| `features` | Authored `.md` frontmatter in `src/content/features/` | `slug, title, summary, order, status, implements{workflows,skills,dependencies,integrations}, runWith, tradeoffs, notes` (body rendered as-is) | **Authored** (extractor only indexes) |
-| `workflows` | `.github/workflows/*.yml` | `slug, title, file, trigger, description (first #-comment block), jobs[{name,runsOn,steps}]` | Extracted |
-| `skills` | `SKILL.md` under `roots` | `slug, title, description (verbatim), appliesTo, category (from path), path` | Extracted |
-| `dependencies` | listed `package.json` manifests | `name, version (verbatim), kind (dependency/devDependency), component, packageFile` | Extracted |
-| `integrations` | `integrations:` list in `wiki.config.yaml` | `slug, name, kind, summary, auth, url, notes` | **Authored** (in config) |
+| `features` | Authored `.md` frontmatter in `src/content/features/` | `slug, title, summary, order, status, implements{…}, runWith, tradeoffs, notes` (body rendered as-is) → **Features** | **Authored** (extractor only indexes) |
+| `workflows` | `.github/workflows/*.yml` | `slug, title, file, trigger, description (first #-comment block), jobs[…]` → **CI/CD** | Extracted |
+| `skills` | `SKILL.md` under `roots` | `slug, title, description (verbatim), appliesTo, category, path` → **Skills** | Extracted |
+| `dependencies` | listed `package.json` manifests | `name, version (verbatim), kind, component, packageFile` → **Dependencies** | Extracted |
+| `integrations` | `integrations:` list in `wiki.config.yaml` | `slug, name, kind, summary, auth, url, notes` → **Dependencies & Integrations** | **Authored** (in config) |
+| `automation` (pipelines) | `orchestrator/src/registry/pipelines.yaml` (`showAll` → every entry) | `name, handler, executionKind, workflow, triggers, params` → **Automation** | Extracted |
+| `endpointsExpress` (`appFiles` mode) | `app.<method>()` routes in `orchestrator/src/index.ts` | endpoint groups (`method, path, auth, params`) → **API Reference** | Extracted |
+| `models` | `litellm/config.yaml` `model_list` | `alias, model, apiKeyEnv, apiBase, fallbacks` → **Model Gateway** | Extracted |
+| `env` | `orchestrator/.env.example` (required-ness from `requireEnv()` in `index.ts`) | `name, required, description, component, defaultValue` → **Configuration** | Extracted |
 | `markdown` | Globbed `.md` (`roadmap/*`, `CONTRIBUTING.md`, `orchestrator/README.md`), copied byte-for-byte | `slug, title (H1), sourcePath, contentFile, navSection` | Extracted (verbatim copy) |
-| `changelog` | `wiki-content/changelog.yaml` | `date, added[], changed[], fixed[]` | **Authored** |
+| `changelog` | `wiki-content/changelog.yaml` | `date, added[], changed[], fixed[]` → **Changelog** | **Authored** |
 
-**Disabled here, available to app repos:**
+**Disabled here, available to app repos** (no applicable source in this repo):
 
 | Extractor | Purpose |
 | --- | --- |
-| `endpointsExpress` | API Reference from an Express `router.<method>()` + mount-file layout. |
 | `endpointsKotlin` | API Reference from Kotlin `@GET/@POST` controllers. |
 | `tests` | Test-suite / coverage section. |
 | `appList` | List-of-apps section. |
-| `automation` | Per-repo automation/scripts section. |
 
 ### Optional authoring step (`scripts/wiki-author.mjs`)
 
@@ -176,24 +179,29 @@ alias to draft the file in the exact frontmatter format the `features` extractor
 parses. It is deliberately conservative — it **no-ops** without
 `LITELLM_PROXY_URL`/`LITELLM_VIRTUAL_KEY`, no-ops without a manifest, and
 **never overwrites** an existing authored file. It runs only when a caller passes
-`author_content: true`. It is **not** the normal way features are made:
-today every feature page is hand/agent-authored and committed, and this step is
-dormant (no manifest committed, and it depends on a healthy gateway).
+`author_content: true` (the `wiki-author.yml` workflow does). A manifest is
+committed at `wiki-content/authoring.yaml`, so drafting a **new** feature page is
+just: add a manifest entry, run `wiki-author.yml`. It is **not** the normal way
+features are made — existing pages are hand/agent-authored and committed, and are
+never overwritten. Its one remaining runtime prerequisite is a reachable gateway
+`documentation` alias.
 
 ---
 
-## Known gaps
+## What's extracted vs. still authored
 
-- **The registry is not extracted.** No extractor reads
-  `orchestrator/src/registry/pipelines.yaml`, so pipeline params
-  (`model_profile`, `strategy`, `max_results`, …) reach the docs only because
-  they were hand-typed into the authored feature page. A dedicated `pipelines`
-  extractor would close this.
-- **The orchestrator's HTTP surface is not extracted.** Its routes are mounted
-  as `app.<method>()` in `orchestrator/src/index.ts` (plus routes inside the
-  external engine package), which the Express extractor's `router.<method>()`
-  layout does not match — so a purpose-built endpoints extractor is needed to
-  document the API automatically.
-- **The gateway aliases and required env vars are only described in prose.**
-  Extractors reading `litellm/config.yaml` and `orchestrator/.env.example` would
-  keep the model routing and configuration reference accurate automatically.
+The registry, the orchestrator's HTTP routes, the gateway aliases, and the
+config/env reference are all **extracted** now (the `automation`,
+`endpointsExpress`, `models`, and `env` extractors above) — a change to
+`pipelines.yaml`, `index.ts`, `litellm/config.yaml`, or `.env.example` flows into
+the docs on the next generator run, no hand-editing.
+
+What is still **authored** (by design — facts are extracted, prose is not):
+
+- Feature **narrative** and frontmatter (`summary`, `tradeoffs`, `notes`, the
+  `implements` links) in `src/content/features/*.md`.
+- The `integrations:` list in `wiki.config.yaml` and `wiki-content/changelog.yaml`.
+
+Known extraction boundary: `endpointsExpress` here reads only the routes mounted
+in `orchestrator/src/index.ts`; routes defined inside the external
+`@heyitschloe/pipeline-orchestrator` engine package aren't visible to extraction.
