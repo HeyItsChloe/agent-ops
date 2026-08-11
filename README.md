@@ -69,6 +69,14 @@ virtual-key auth.
 | `.github/workflows/e2e-pipeline-reusable.yml` | *(reusable)* e2e test runner for app repos | `workflow_call` only |
 | `.github/workflows/sync-upstream.yml` | opens a PR syncing this fork with upstream | daily cron, or manual |
 
+> **Caller permissions (gotcha):** a workflow that calls
+> `wiki-generate-reusable.yml` must grant its job `permissions: { contents:
+> write, pages: write, id-token: write }` — a reusable workflow can never hold
+> more than the calling job does, so omitting this makes the run fail at
+> **startup with 0 jobs** (not a build error). `wiki-generate.yml` and
+> `templates/wiki-caller.yml` both declare this block; copy it into any new
+> caller.
+
 Config/secrets the services need are held as **GitHub Secrets** and forwarded by
 the deploy workflows (never committed). Orchestrator requires: `GH_APP_ID`,
 `GH_APP_PRIVATE_KEY`, `GH_APP_INSTALLATION_ID`,
