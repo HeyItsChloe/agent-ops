@@ -32,6 +32,15 @@ on:
 
 jobs:
   wiki:
+    # Must be granted at the caller: a reusable workflow can't be given more
+    # than the calling job holds, and the reusable needs contents: write (to
+    # commit regenerated data back to main) plus pages/id-token to deploy.
+    # Omitting this made the run fail at startup (0 jobs). Mirrors
+    # templates/wiki-caller.yml's block.
+    permissions:
+      contents: write
+      pages: write
+      id-token: write
     uses: ./.github/workflows/wiki-generate-reusable.yml
     with:
       # agent-ops's site lives in agent-ops-docs/, not the reusable's "docs"
