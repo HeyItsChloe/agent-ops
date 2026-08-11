@@ -106,6 +106,12 @@ function writeNavigation(config, outputPaths) {
   if (e.dependencies?.enabled || e.integrations?.enabled) {
     sections.push({ key: 'dependencies', title: 'Dependencies & Integrations', href: '/dependencies', dataImport: null, childrenExpr: '[]' });
   }
+  if (e.models?.enabled) {
+    sections.push({ key: 'models', title: 'Model Gateway', href: '/models', dataImport: null, childrenExpr: '[]' });
+  }
+  if (e.env?.enabled) {
+    sections.push({ key: 'configuration', title: 'Configuration', href: '/configuration', dataImport: null, childrenExpr: '[]' });
+  }
 
   // Markdown: one section per distinct navSection (read from the extracted
   // pages sidecar), keyed by a slug of the navSection - so a repo's roadmap/
