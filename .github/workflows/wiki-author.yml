@@ -1,0 +1,31 @@
+name: wiki-author
+
+# On-demand "draft missing docs" run for agent-ops's own site.
+#
+# The wiki generator only ever extracts facts; feature *prose* is authored.
+# scripts/wiki-author.mjs is the automation path that drafts a MISSING feature
+# page (one listed in wiki-content/authoring.yaml with no committed .md yet) via
+# the LiteLLM `documentation` alias. It never overwrites existing pages.
+#
+# This is workflow_dispatch-only on purpose: authoring calls the model gateway,
+# so it should be run deliberately, not on every push. It reuses the shared
+# generator with author_content: true, which runs the author step, then the
+# normal extract -> commit -> build -> deploy.
+#
+# Prerequisites for it to actually draft (otherwise it cleanly no-ops):
+#   - LITELLM_PROXY_URL and LITELLM_VIRTUAL_KEY set as repo secrets (they are,
+#     via secrets: inherit - the deploy workflows already use them).
+#   - The LiteLLM gateway healthy and its `documentation` alias reachable.
+#   - At least one entry in wiki-content/authoring.yaml whose page is missing.
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  author:
+    uses: ./.github/workflows/wiki-generate-reusable.yml
+    with:
+      site_dir: agent-ops-docs
+      config_path: wiki.config.yaml
+      author_content: true
+    secrets: inherit
