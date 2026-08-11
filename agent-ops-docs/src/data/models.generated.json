@@ -1,0 +1,51 @@
+[
+  {
+    "slug": "planning",
+    "alias": "planning",
+    "model": "gemini/gemini-2.5-flash",
+    "apiKeyEnv": "GEMINI_API_KEY",
+    "apiBase": "",
+    "fallbacks": [
+      "implementation-fallback"
+    ],
+    "_sourceHash": "72e197b8cf6843e180d9e02f023c5566cb033ae7"
+  },
+  {
+    "slug": "implementation",
+    "alias": "implementation",
+    "model": "gemini/gemini-2.5-flash",
+    "apiKeyEnv": "GEMINI_API_KEY",
+    "apiBase": "",
+    "fallbacks": [
+      "implementation-fallback"
+    ],
+    "_sourceHash": "9fe3621ba2b7f2d18366348be9666459cd560131"
+  },
+  {
+    "slug": "classification",
+    "alias": "classification",
+    "model": "ollama/qwen2.5-coder:7b",
+    "apiKeyEnv": "",
+    "apiBase": "http://localhost:11434",
+    "fallbacks": [],
+    "_sourceHash": "a56dca80b7a9cc709555c762a3bbdb80767d4fa6"
+  },
+  {
+    "slug": "documentation",
+    "alias": "documentation",
+    "model": "anthropic/claude-opus-4-8",
+    "apiKeyEnv": "ANTHROPIC_API_KEY",
+    "apiBase": "",
+    "fallbacks": [],
+    "_sourceHash": "728530d631b39323bc99b66e11ea74baa359a274"
+  },
+  {
+    "slug": "implementation-fallback",
+    "alias": "implementation-fallback",
+    "model": "openai/gpt-5.1",
+    "apiKeyEnv": "OPENAI_API_KEY",
+    "apiBase": "",
+    "fallbacks": [],
+    "_sourceHash": "8fb1cbc42efb3fbf79ab13baa3500157ae4f020f"
+  }
+]

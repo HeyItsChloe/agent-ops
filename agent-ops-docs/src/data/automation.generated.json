@@ -1,1 +1,77 @@
-[]
+[
+  {
+    "slug": "busybuddy-dev",
+    "name": "busybuddy-dev",
+    "handler": "dev-ticket-pipeline",
+    "executionKind": "github-actions",
+    "workflow": "dev-pipeline-reusable.yml",
+    "triggers": [
+      "label \"approach-ready\" -> plan",
+      "label \"approved\" -> implement",
+      "comment \"@dev-agent plan\" -> plan",
+      "comment \"@dev-agent implement\" -> implement"
+    ],
+    "params": {
+      "model_profile": "implementation",
+      "project_language": [
+        "typescript"
+      ],
+      "test_command": "npm test -- --coverage",
+      "coverage_type": "cobertura",
+      "desired_coverage": 85,
+      "reviewer": "heyitschloe"
+    },
+    "description": "Handler: dev-ticket-pipeline. Skill: skills/shared/dev/project-conventions.",
+    "_sourceHash": "8bb359144a7f3d191e20a31b59dbd5d1db3442ab"
+  },
+  {
+    "slug": "ordermate-dev",
+    "name": "ordermate-dev",
+    "handler": "dev-ticket-pipeline",
+    "executionKind": "github-actions",
+    "workflow": "dev-pipeline-reusable.yml",
+    "triggers": [
+      "label \"approach-ready\" -> plan",
+      "label \"approved\" -> implement",
+      "comment \"@dev-agent plan\" -> plan",
+      "comment \"@dev-agent implement\" -> implement"
+    ],
+    "params": {
+      "model_profile": "implementation",
+      "test_command": "./gradlew test",
+      "coverage_type": "jacoco",
+      "desired_coverage": 40,
+      "project_language": [
+        "kotlin"
+      ],
+      "reviewer": "heyitschloe"
+    },
+    "description": "Handler: dev-ticket-pipeline. Skill: skills/shared/dev/android-conventions.",
+    "_sourceHash": "f37742c117f05af5899c33697827a729c0e3ec9a"
+  },
+  {
+    "slug": "resume-job-applier",
+    "name": "resume-job-applier",
+    "handler": "job-search-pipeline",
+    "executionKind": "in-process",
+    "triggers": [
+      "chat tool: run_personal_project_pipeline",
+      "http kind: personal"
+    ],
+    "params": {
+      "model_profile": "planning",
+      "resume_source": {
+        "mode": "generated_pdf"
+      },
+      "cover_letter_source": {
+        "mode": "generated_pdf"
+      },
+      "sourcing_method": "scraping",
+      "strategy": "scrapeOne",
+      "max_results": 10,
+      "search_provider": "serpapi"
+    },
+    "description": "Handler: job-search-pipeline. Skill: skills/personal/resume-job-applier.",
+    "_sourceHash": "5f1452b61605fd3b96db7c79e3c6dd3933e08841"
+  }
+]
