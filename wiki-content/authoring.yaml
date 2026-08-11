@@ -1,0 +1,70 @@
+# Authoring manifest for scripts/wiki-author.mjs (the optional documentation-
+# authoring step). This is the ONLY thing that makes that step do work.
+#
+# How it's used: when the wiki generator runs with author_content: true (see
+# .github/workflows/wiki-author.yml), wiki-author.mjs reads this file and, for
+# each feature below whose page does NOT yet exist at
+# agent-ops-docs/src/content/features/<slug>.md, asks the model behind the
+# LiteLLM `documentation` alias to draft it in the exact frontmatter format the
+# `features` extractor parses. It NEVER overwrites an existing authored page -
+# human/committed prose always wins - so listing an already-authored feature
+# here is a safe no-op, and the entries double as the canonical feature list.
+#
+# To document a NEW feature automatically: add an entry here (slug/title/order
+# + a factual `facts` block the model must stay within) and run the wiki-author
+# workflow. The gateway must be healthy and LITELLM_PROXY_URL/LITELLM_VIRTUAL_KEY
+# must be set for the draft to succeed; without them the step no-ops.
+
+features:
+  - slug: wiki-generator
+    title: Wiki Generator
+    order: 1
+    facts: |
+      Config-driven shared generator (scripts/wiki-generate.mjs + wiki-extractors/*)
+      that builds a target repo's docs site from its own source, driven by that
+      repo's wiki.config.yaml, then deploys it to GitHub Pages.
+
+  - slug: dev-ticket-pipeline
+    title: Dev-Ticket Pipeline
+    order: 2
+    facts: |
+      GitHub-issue-driven development for app repos: plan on the approach-ready
+      label, implement on approval, all through a labels-and-mentions gate.
+      execution.kind github-actions; dispatches dev-pipeline-reusable.yml.
+
+  - slug: job-search-pipeline
+    title: Job Search Pipeline
+    order: 3
+    facts: |
+      Private in-process pipeline (registry entry resume-job-applier) that sources
+      postings, drafts a tailored resume and cover letter as PDFs, builds a
+      form-field map, and stops - it never submits an application.
+
+  - slug: e2e-pipeline
+    title: E2E Pipeline
+    order: 4
+    facts: |
+      Shared reusable GitHub Actions workflow (e2e-pipeline-reusable.yml) that runs
+      end-to-end tests, with a hardened self-managed Android emulator path.
+
+  - slug: upstream-sync
+    title: Upstream Sync
+    order: 5
+    facts: |
+      Daily workflow (sync-upstream.yml) that merges the canonical upstream
+      agent-ops into this fork, pushing clean merges and opening a PR on conflict.
+
+  - slug: deploys
+    title: Deploys
+    order: 6
+    facts: |
+      Three GitHub Actions workflows that ship the orchestrator and the LiteLLM
+      gateway to Cloud Run and publish the docs site to GitHub Pages.
+
+  - slug: orchestrator-registry
+    title: Orchestrator Pipeline Registry
+    order: 7
+    facts: |
+      A single YAML registry (orchestrator/src/registry/pipelines.yaml) where each
+      pipeline is one entry, run by the pipeline-orchestrator engine; adding a
+      pipeline needs no engine code.
