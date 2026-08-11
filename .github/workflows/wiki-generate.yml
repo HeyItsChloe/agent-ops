@@ -1,0 +1,44 @@
+name: wiki-generate
+
+# Self-caller that wires agent-ops's OWN docs into the shared wiki generator.
+#
+# wiki-generate-reusable.yml is workflow_call-only, and its thin caller
+# (templates/wiki-caller.yml) is a template meant to be copied into OTHER repos
+# (BusyBuddy_v2, etc.) - so nothing here ever regenerated agent-ops's own
+# generated docs data on a merge to main. This closes that loop: on a push to
+# main that touches an extractable doc source, it runs the extractors, commits
+# any changed agent-ops-docs/src/data/*.generated.json back to main, then builds
+# and deploys the site to GitHub Pages (the reusable does all three).
+#
+# Trigger paths are the generator's *inputs* only. They deliberately exclude
+# everything the generator itself writes (agent-ops-docs/src/data/**,
+# agent-ops-docs/src/content/*.md copies, wiki.config.generated.ts), and they
+# scope authored feature edits to src/content/features/** - a directory no
+# extractor ever writes to - so the generator's own commit can never re-trigger
+# this workflow. Site source/component edits keep using deploy-docs.yml.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "skills/**"
+      - ".github/workflows/**"
+      - "orchestrator/**"
+      - "litellm/**"
+      - "wiki.config.yaml"
+      - "wiki-content/**"
+      - "agent-ops-docs/src/content/features/**"
+  workflow_dispatch: {}
+
+jobs:
+  wiki:
+    uses: ./.github/workflows/wiki-generate-reusable.yml
+    with:
+      # agent-ops's site lives in agent-ops-docs/, not the reusable's "docs"
+      # default; wiki.config.yaml is at the repo root (the default).
+      site_dir: agent-ops-docs
+      config_path: wiki.config.yaml
+    # The reusable only consumes the secrets it declares (GH_APP_ID,
+    # GH_APP_PRIVATE_KEY required; LITELLM_* optional and unused unless
+    # author_content is set, which this caller leaves off).
+    secrets: inherit
