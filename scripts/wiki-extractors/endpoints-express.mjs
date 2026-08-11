@@ -249,14 +249,17 @@ export async function extract({ repoRoot, config, outputPaths }) {
         method,
         path: fullPath,
         title: titleCaseFromSlug(handlerName.replace(/^get|^post|^put|^patch|^delete/i, '') || handlerName),
-        description: `Handled by ${handlerName}() in ${relative(repoRoot, controllerDir ? join(controllerDir, basename(dirname(abs)), 'index.js') : abs)}.`,
+        description: `${method} ${fullPath} — handled by ${handlerName}().`,
         auth,
         authNote,
         // Hashes the exact matched router-registration text plus the
         // resolved handler's body (if any) - see merge.mjs's hashSource
         // docstring for why this drives change-detection instead of a full
         // structural diff of the entry.
-        _sourceHash: hashSource(`${relFile}::${apiPrefix}${prefix}::${m[0]}::${handlerBody}`),
+        // `desc-v2` bumps the hash so the improved method+path description
+        // template lands on existing entries too (the merge only refreshes an
+        // entry when its _sourceHash changes).
+        _sourceHash: hashSource(`desc-v2::${relFile}::${apiPrefix}${prefix}::${m[0]}::${handlerBody}`),
         params: [...pathParams, ...bodyQueryParams],
         responseExample: '{ }',
         liveTestable: auth === 'app-proxy' || auth === 'none',
@@ -268,7 +271,7 @@ export async function extract({ repoRoot, config, outputPaths }) {
     groupsBySlug.set(groupSlug, {
       slug: groupSlug,
       title: titleCaseFromSlug(groupSlug),
-      description: `Mounted at ${prefix}. Extracted from ${relFile}.`,
+      description: `${titleCaseFromSlug(groupSlug)} endpoints (mounted at ${prefix}).`,
       endpoints,
     });
   }

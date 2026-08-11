@@ -73,6 +73,17 @@ jobs:
           APPLICANT_SPONSORSHIP_REQUIRED: ${{ secrets.APPLICANT_SPONSORSHIP_REQUIRED }}
           APPLICANT_DESIRED_SALARY: ${{ secrets.APPLICANT_DESIRED_SALARY }}
           APPLICANT_AVAILABILITY: ${{ secrets.APPLICANT_AVAILABILITY }}
+          # (New) email pipeline provider credentials (Epic 6). Optional as a
+          # group — each provider reads its own creds at send time and returns a
+          # not-ok EmailResult if unset, so an unconfigured provider just can't
+          # send rather than breaking the deploy. Kept on the orchestrator so no
+          # caller repo ever holds them.
+          GMAIL_CLIENT_ID: ${{ secrets.GMAIL_CLIENT_ID }}
+          GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
+          GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
+          GMAIL_SENDER: ${{ secrets.GMAIL_SENDER }}
+          MAILCHIMP_TRANSACTIONAL_API_KEY: ${{ secrets.MAILCHIMP_TRANSACTIONAL_API_KEY }}
+          MAILCHIMP_FROM_EMAIL: ${{ secrets.MAILCHIMP_FROM_EMAIL }}
         run: |
           python3 - <<'PYEOF'
           import os
@@ -112,6 +123,8 @@ jobs:
               "APPLICANT_CURRENT_TITLE", "APPLICANT_CURRENT_EMPLOYER", "APPLICANT_YEARS_EXPERIENCE",
               "APPLICANT_WORK_AUTHORIZATION", "APPLICANT_SPONSORSHIP_REQUIRED",
               "APPLICANT_DESIRED_SALARY", "APPLICANT_AVAILABILITY",
+              "GMAIL_CLIENT_ID", "GMAIL_CLIENT_SECRET", "GMAIL_REFRESH_TOKEN", "GMAIL_SENDER",
+              "MAILCHIMP_TRANSACTIONAL_API_KEY", "MAILCHIMP_FROM_EMAIL",
           ]
           for key in optional:
               value = os.environ.get(key, "")

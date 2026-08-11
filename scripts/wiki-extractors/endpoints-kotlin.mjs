@@ -12,6 +12,7 @@ import { readFileSync } from 'node:fs';
 import { resolve, join, basename } from 'node:path';
 import { globSync } from './glob.mjs';
 import { mergeGroupedEntries, readJsonSidecar, writeJsonSidecar, writeGeneratedTsWrapper, hashSource } from './merge.mjs';
+import { buildDtoRegistry, exampleJson, unwrapType } from './dto-resolve.mjs';
 
 // Matches an @GET/@POST/@PUT/@DELETE/@PATCH annotation, the following
 // `suspend fun name(` signature, and captures the parameter list up to the
@@ -19,7 +20,7 @@ import { mergeGroupedEntries, readJsonSidecar, writeJsonSidecar, writeGeneratedT
 // it. Kotlin function signatures for Retrofit calls are short enough that a
 // bounded, non-greedy multi-line match works reliably in practice.
 const ENDPOINT_RE =
-  /@(GET|POST|PUT|DELETE|PATCH)\(\s*"([^"]+)"\s*\)\s*\n\s*suspend fun\s+([A-Za-z0-9_]+)\s*\(([\s\S]*?)\)\s*:/g;
+  /@(GET|POST|PUT|DELETE|PATCH)\(\s*"([^"]+)"\s*\)\s*\n\s*suspend fun\s+([A-Za-z0-9_]+)\s*\(([\s\S]*?)\)\s*:\s*([^\n{]+)/g;
 
 const PATH_PARAM_RE = /@Path\(\s*"([^"]+)"\s*\)\s*([A-Za-z0-9_]+)\s*:\s*([A-Za-z0-9_<>?,\s]+?)(?:,|$)/g;
 const QUERY_PARAM_RE = /@Query\(\s*"([^"]+)"\s*\)\s*([A-Za-z0-9_]+)\s*:\s*([A-Za-z0-9_<>?,\s]+?)(?:,|$)/g;
@@ -58,6 +59,11 @@ export async function extract({ repoRoot, config, outputPaths }) {
   const globs = opts.interfaceGlob ?? [];
   const files = globs.flatMap((g) => globSync(g, { cwd: repoRoot }));
 
+  // DTO registry for real request/response example bodies. Defaults to the
+  // whole app source tree; narrow with endpointsKotlin.modelGlobs if needed.
+  const modelGlobs = opts.modelGlobs ?? ['app/src/main/**/*.kt'];
+  const dtoRegistry = buildDtoRegistry(repoRoot, modelGlobs);
+
   const groupsBySlug = new Map();
 
   for (const relFile of files) {
@@ -67,7 +73,8 @@ export async function extract({ repoRoot, config, outputPaths }) {
     ENDPOINT_RE.lastIndex = 0;
     let m;
     while ((m = ENDPOINT_RE.exec(src))) {
-      const [, httpMethod, path, fnName, paramList] = m;
+      const [, httpMethod, path, fnName, paramList, returnTypeRaw] = m;
+      const returnType = (returnTypeRaw ?? '').trim();
       const params = [];
 
       PATH_PARAM_RE.lastIndex = 0;
@@ -83,21 +90,30 @@ export async function extract({ repoRoot, config, outputPaths }) {
       BODY_PARAM_RE.lastIndex = 0;
       while ((pm = BODY_PARAM_RE.exec(paramList))) {
         params.push({ name: pm[1], type: mapType(pm[2]), required: !pm[2].includes('?'), description: '', in: 'body' });
-        bodyExample = `{ /* ${mapType(pm[2])} */ }`;
+        // Resolve the real request DTO into an example body instead of a stub.
+        bodyExample = exampleJson(pm[2].trim(), dtoRegistry);
       }
 
+      // Real response example from the (unwrapped) return type; '{ }' only when
+      // the type is opaque (e.g. Response<Any>) and can't be resolved.
+      const responseExample = exampleJson(returnType, dtoRegistry);
+      const returnClean = unwrapType(returnType);
+      const returnNote =
+        returnClean && !['Any', 'Unit', 'Void', 'ResponseBody'].includes(returnClean) ? ` Returns ${returnClean}.` : '';
+
+      const routePath = `/${path.replace(/{([A-Za-z0-9_]+)}/g, ':$1')}`.replace(/\/{2,}/g, '/');
       const groupSlug = groupSlugFromPath(path);
       const endpoint = {
         slug: slugFromCamel(fnName),
         method: httpMethod,
-        path: `/${path.replace(/{([A-Za-z0-9_]+)}/g, ':$1')}`,
+        path: routePath,
         title: titleCaseFromCamel(fnName),
-        description: `Retrofit call ${fnName}() in ${relFile}.`,
+        description: `${httpMethod} ${routePath} — ${titleCaseFromCamel(fnName)}.${returnNote}`,
         auth: 'bearer',
         authNote: 'Requires a Clover/OrderMate API bearer token. Supply it in the sandbox before sending.',
         params,
         ...(bodyExample ? { requestExample: bodyExample } : {}),
-        responseExample: '{ }',
+        responseExample,
         liveTestable: true,
         sourceFile: relFile,
         _sourceHash: hashSource(`${relFile}::${m[0]}`),
@@ -107,7 +123,7 @@ export async function extract({ repoRoot, config, outputPaths }) {
         groupsBySlug.set(groupSlug, {
           slug: groupSlug,
           title: titleCaseFromCamel(groupSlug),
-          description: `Retrofit calls involving "${groupSlug}", extracted from ${basename(abs)}.`,
+          description: `${titleCaseFromCamel(groupSlug)} endpoints (${basename(abs)}).`,
           endpoints: [],
         });
       }

@@ -7,7 +7,7 @@ import { readFileSync } from 'node:fs';
 import { resolve, join, basename } from 'node:path';
 import { parse } from 'yaml';
 import { globSync } from './glob.mjs';
-import { mergeEntries, readJsonSidecar, writeJsonSidecar, writeGeneratedTsWrapper, hashSource } from './merge.mjs';
+import { mergeEntries, readJsonSidecar, writeJsonSidecar, writeGeneratedTsWrapper, hashSource, readAuthoredItems, overlayAuthored } from './merge.mjs';
 
 function slugFromFilename(file) {
   return basename(file).replace(/\.ya?ml$/, '');
@@ -108,6 +108,7 @@ export async function extract({ repoRoot, config, outputPaths }) {
   const sidecarPath = join(outputPaths.dataDir, 'workflows.generated.json');
   const existing = readJsonSidecar(sidecarPath, []);
   const result = mergeEntries(existing, incoming, { key: 'slug' });
+  overlayAuthored(result.merged, readAuthoredItems(repoRoot, 'workflows'), ['description']);
 
   writeJsonSidecar(sidecarPath, result.merged);
   writeGeneratedTsWrapper(

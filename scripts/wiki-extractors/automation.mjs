@@ -13,9 +13,9 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { parse } from 'yaml';
-import { mergeEntries, readJsonSidecar, writeJsonSidecar, writeGeneratedTsWrapper, hashSource, stableStringify } from './merge.mjs';
+import { mergeEntries, readJsonSidecar, writeJsonSidecar, writeGeneratedTsWrapper, hashSource, stableStringify, readAuthoredItems, overlayAuthored } from './merge.mjs';
 
-export async function extract({ config, outputPaths, controlRepoRoot }) {
+export async function extract({ repoRoot, config, outputPaths, controlRepoRoot }) {
   const opts = config.extractors.automation;
   if (!opts?.enabled) return { skipped: true };
 
@@ -64,6 +64,7 @@ export async function extract({ config, outputPaths, controlRepoRoot }) {
   const sidecarPath = join(outputPaths.dataDir, 'automation.generated.json');
   const existing = readJsonSidecar(sidecarPath, []);
   const result = mergeEntries(existing, incoming, { key: 'slug' });
+  overlayAuthored(result.merged, readAuthoredItems(repoRoot, 'automation'), ['description']);
 
   writeJsonSidecar(sidecarPath, result.merged);
   writeGeneratedTsWrapper(

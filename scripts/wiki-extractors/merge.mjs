@@ -26,8 +26,41 @@
  */
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 import { createHash } from 'node:crypto';
+import { parse as parseYaml } from 'yaml';
+
+/**
+ * Authored-prose overlay (issue #286, approach A — generalized to all kinds).
+ *
+ * Facts are machine-extracted; prose (summaries, descriptions, curated lists)
+ * is authored — automatically drafted by scripts/wiki-author.mjs into a
+ * committed `wiki-content/authored/<kind>.yaml` manifest, then overlaid here
+ * onto the fact-extracted entries by slug. Applied on every run after merge, so
+ * authored prose always takes effect and always survives re-extraction. The
+ * generator itself calls no LLM — wiki-author does the drafting; this only
+ * reads committed content.
+ */
+export function readAuthoredItems(repoRoot, kind) {
+  const path = join(repoRoot, 'wiki-content', 'authored', `${kind}.yaml`);
+  if (!existsSync(path)) return new Map();
+  const doc = parseYaml(readFileSync(path, 'utf8')) ?? {};
+  const items = Array.isArray(doc) ? doc : doc.items ?? [];
+  return new Map(items.filter((it) => it && it.slug).map((it) => [it.slug, it]));
+}
+
+/** Overlays the listed prose fields from an authored manifest onto entries, by slug. */
+export function overlayAuthored(entries, authoredMap, fields) {
+  if (!authoredMap || authoredMap.size === 0) return entries;
+  for (const e of entries) {
+    const a = authoredMap.get(e.slug);
+    if (!a) continue;
+    for (const f of fields) {
+      if (a[f] !== undefined && a[f] !== null && a[f] !== '') e[f] = a[f];
+    }
+  }
+  return entries;
+}
 
 /**
  * Every extractor should stamp each entry it emits with `_sourceHash`, a

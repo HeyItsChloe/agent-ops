@@ -250,5 +250,88 @@
     ],
     "contentFile": "features/orchestrator-registry.md",
     "_sourceHash": "13788603f33434c6e5cb65e9f27e8ff34a72c66c"
+  },
+  {
+    "slug": "orchestrator-http-api",
+    "title": "Orchestrator HTTP API",
+    "summary": "The orchestrator's Express HTTP surface — engine trigger/webhook routes plus this deployment's own Chrome-extension routes — authored by hand because the endpoint extractor only sees router.* registrations, not app.*.",
+    "order": 8,
+    "status": "stable",
+    "implements": {
+      "workflows": [
+        "deploy-orchestrator"
+      ],
+      "skills": [],
+      "dependencies": [
+        "@heyitschloe/pipeline-orchestrator",
+        "express"
+      ],
+      "integrations": [
+        "github-app",
+        "cloud-run",
+        "github-actions"
+      ]
+    },
+    "runWith": [
+      "Runs as the Express service in orchestrator/src/index.ts (engine routes from createServer, extension routes mounted on the returned app) deployed to Cloud Run via deploy-orchestrator.yml; locally via npm run dev."
+    ],
+    "tradeoffs": [
+      "Every route is registered with Express app.* (in the engine's server.js and in index.ts), which the endpointsExpress extractor's router.* regex never matches, so this page is authored by hand rather than generated."
+    ],
+    "notes": [
+      {
+        "kind": "important",
+        "body": "The shared-secret routes check an x-orchestrator-secret header (not a bearer token or query param); the extension routes check x-extension-api-key; /webhook/github verifies GitHub's x-hub-signature-256 HMAC."
+      },
+      {
+        "kind": "note",
+        "body": "The extension routes are mounted only when EXTENSION_API_KEY is set, so they return 404 (route absent) rather than 401 when the deployment has no extension key configured."
+      }
+    ],
+    "contentFile": "features/orchestrator-http-api.md",
+    "_sourceHash": "232a6c66330223080bd5563bb782aaad9d8117ce"
+  },
+  {
+    "slug": "orchestrator-architecture",
+    "title": "Orchestrator Architecture",
+    "summary": "How the orchestrator is assembled — a generic pipeline-orchestrator engine registered with two handlers, a YAML registry, GitHub App auth, and two execution paths (repository_dispatch to app-repo workflows vs in-process handlers).",
+    "order": 9,
+    "status": "stable",
+    "implements": {
+      "workflows": [
+        "deploy-orchestrator"
+      ],
+      "skills": [],
+      "dependencies": [
+        "@heyitschloe/pipeline-orchestrator",
+        "express",
+        "zod",
+        "jsonwebtoken"
+      ],
+      "integrations": [
+        "github-app",
+        "cloud-run",
+        "github-actions",
+        "model-providers"
+      ]
+    },
+    "runWith": [
+      "Runs as one Express service (orchestrator/src/index.ts) built from the generic engine plus this repo's handlers, deployed to Cloud Run via deploy-orchestrator.yml; locally via npm run dev."
+    ],
+    "tradeoffs": [
+      "The engine is a published npm package (@heyitschloe/pipeline-orchestrator) and this deployment is a thin bootstrap, so generic trigger/registry/auth logic is shared code while only the private job-search handler and extension routes live in this repo."
+    ],
+    "notes": [
+      {
+        "kind": "tip",
+        "body": "An entry's execution.kind decides the path: github-actions fires a repository_dispatch at the target repo's own reusable workflow; in-process runs the handler inside the orchestrator, which then calls models directly through LiteLLM."
+      },
+      {
+        "kind": "note",
+        "body": "Two installations of the same GitHub App are used — the 11thandOrange org install for dev-ticket dispatch, the heyitschloe personal install for the job-search pipeline's skill fetch and the-store append. Using the wrong installation id 404s at token minting."
+      }
+    ],
+    "contentFile": "features/orchestrator-architecture.md",
+    "_sourceHash": "5296498d92dd7465ac49278ea70b9c2542b07e71"
   }
 ]

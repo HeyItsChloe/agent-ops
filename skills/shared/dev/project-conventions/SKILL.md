@@ -10,7 +10,7 @@ Reference example for a `type: dev` project skill — written by hand as the pil
 
 ## Repo
 
-`11thandOrange/BusyBuddy_v2`. This repo previously ran an OpenHands-based pipeline (`ticket-planner`, `busybuddy-implementer`, `shopify-extension-implementer`, `tester`, `smoke-tester`, `pr-reviewer` agents from `HeyItsChloe/.agents`), triggered by a single `ready-to-implement` label with no plan/approval gate. That pipeline is retired in favor of this one (roadmap Phase 0) — don't reintroduce the `ready-to-implement` label as a trigger, and don't assume `.agents`-sourced workflow files are still active; they're legacy reference only.
+`11thandOrange/BusyBuddy_v2`. This repo previously ran an OpenHands-based pipeline (`ticket-planner`, `busybuddy-implementer`, `shopify-extension-implementer`, `tester`, `smoke-tester`, `pr-reviewer` agents from `HeyItsChloe/.agents`), triggered by a single `ready-to-implement` label with no plan/approval gate. That pipeline has been **removed** in favor of this one (BusyBuddy_v2#325, roadmap Phase 0) — don't reintroduce the `ready-to-implement` label as a trigger, and don't assume `.agents`-sourced workflow files are still active; they're legacy reference only.
 
 ## Structure and conventions
 
@@ -27,5 +27,5 @@ Reference example for a `type: dev` project skill — written by hand as the pil
 
 ## Guardrails
 
-- Don't run both this pipeline and the old OpenHands automation on the same issue — confirm the OpenHands registration and the callmebot WhatsApp notifier step are disabled before relying on this pipeline for a given ticket (roadmap Phase 0 checkpoint).
+- The old OpenHands automation's workflow and agent collection were removed from BusyBuddy_v2 in BusyBuddy_v2#325, so it no longer fires on incoming issues. Only the external OpenHands Cloud registration and the associated repo secrets remain to be decommissioned manually (roadmap Phase 0 checkpoint).
 - Don't merge without the coverage gate passing and the designated reviewer's approval — this pipeline opens PRs, it never merges them.

@@ -11,7 +11,7 @@
 
 import { join } from 'node:path';
 import { globSync } from './glob.mjs';
-import { mergeEntries, readJsonSidecar, writeJsonSidecar, writeGeneratedTsWrapper, hashSource } from './merge.mjs';
+import { mergeEntries, readJsonSidecar, writeJsonSidecar, writeGeneratedTsWrapper, hashSource, readAuthoredItems, overlayAuthored } from './merge.mjs';
 
 function slugify(name) {
   return name
@@ -43,6 +43,7 @@ export async function extract({ repoRoot, config, outputPaths }) {
   const sidecarPath = join(outputPaths.dataDir, 'tests.generated.json');
   const existing = readJsonSidecar(sidecarPath, []);
   const result = mergeEntries(existing, incoming, { key: 'slug' });
+  overlayAuthored(result.merged, readAuthoredItems(repoRoot, 'tests'), ['description']);
 
   writeJsonSidecar(sidecarPath, result.merged);
   writeGeneratedTsWrapper(
