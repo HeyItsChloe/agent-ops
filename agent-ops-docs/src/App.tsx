@@ -9,6 +9,8 @@ import { DocsPage } from './pages/DocsPage';
 import { Features } from './pages/Features';
 import { Skills } from './pages/Skills';
 import { Dependencies } from './pages/Dependencies';
+import { Models } from './pages/Models';
+import { Configuration } from './pages/Configuration';
 import { Changelog } from './pages/Changelog';
 
 // HashRouter (#/features, etc.) per issue #286 - GitHub Pages project sites
@@ -39,6 +41,8 @@ function App() {
         <Route path="/skills/:slug" element={<Skills />} />
         <Route path="/tests" element={<Tests />} />
         <Route path="/dependencies" element={<Dependencies />} />
+        <Route path="/models" element={<Models />} />
+        <Route path="/configuration" element={<Configuration />} />
         <Route path="/changelog" element={<Changelog />} />
         <Route path="/:section/:page" element={<DocsPage />} />
         <Route path="/:section" element={<DocsPage />} />

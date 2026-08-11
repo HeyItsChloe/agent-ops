@@ -33,6 +33,10 @@ export async function extract({ config, outputPaths, controlRepoRoot }) {
 
   const incoming = pipelines
     .filter((p) => {
+      // showAll: the control repo (agent-ops) documents every pipeline in its
+      // own registry, regardless of which repo/runner each one acts on. App
+      // repos leave this off and use repoMatch to show only their own.
+      if (opts.showAll) return true;
       const exec = p.execution ?? {};
       if (exec.kind !== 'github-actions') return !opts.repoMatch; // in-process pipelines only included if no repo filter set
       return exec.owner === wantOwner && exec.repo === wantRepo;

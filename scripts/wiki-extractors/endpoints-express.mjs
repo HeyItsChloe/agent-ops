@@ -13,6 +13,13 @@ import { globSync } from './glob.mjs';
 import { mergeGroupedEntries, readJsonSidecar, writeJsonSidecar, writeGeneratedTsWrapper, hashSource } from './merge.mjs';
 
 const METHOD_RE = /router\.(get|post|put|patch|delete)\s*\(\s*["'`]([^"'`]+)["'`]\s*,\s*([A-Za-z0-9_$]+)/g;
+// Routes mounted directly on the Express `app` (agent-ops's orchestrator in
+// src/index.ts), rather than the router-per-feature + mount-file layout the
+// METHOD_RE path handles. Handlers here are middleware/factory *calls*
+// (`extensionAuth(...)`, `handleGenerateAnswer({...})`), not bare identifiers,
+// so this path derives the title from the route path and auth from the
+// middleware named in the statement instead of resolving a controller.
+const APP_METHOD_RE = /\bapp\.(get|post|put|patch|delete)\s*\(\s*["'`]([^"'`]+)["'`]/g;
 const MOUNT_RE = /router\.use\s*\(\s*["'`]([^"'`]+)["'`]\s*,\s*([A-Za-z0-9_$]+)\s*\)/g;
 const IMPORT_RE = /import\s+([A-Za-z0-9_$]+)\s+from\s+["'`](\.[^"'`]+)["'`]/g;
 
@@ -154,6 +161,43 @@ function resolveMountPrefixes(mountFilePath, routesRootDir) {
   return prefixByFile;
 }
 
+/** Builds endpoints from `app.<method>("path", ...middleware, handler)` calls. */
+function endpointsFromAppFile(src, relFile, apiPrefix) {
+  const endpoints = [];
+  APP_METHOD_RE.lastIndex = 0;
+  let m;
+  while ((m = APP_METHOD_RE.exec(src))) {
+    const [, methodLower, routePath] = m;
+    const method = methodLower.toUpperCase();
+    const stmt = src.slice(m.index, m.index + 600); // enough to see the middleware chain
+    let auth = 'none';
+    let authNote = 'No authentication middleware detected on this route.';
+    if (/extensionAuth/.test(stmt)) {
+      auth = 'api-key';
+      authNote = 'Requires the Chrome-extension API key in the x-extension-api-key header.';
+    } else if (/sharedSecretAuth/.test(stmt)) {
+      auth = 'api-key';
+      authNote = 'Requires the orchestrator shared secret.';
+    }
+    const lastSegment = routePath.split('/').filter((s) => s && !s.startsWith(':')).pop() ?? routePath;
+    endpoints.push({
+      slug: slugFromMethodPath(method, routePath),
+      method,
+      path: `${apiPrefix}${routePath}`.replace(/\/{2,}/g, '/'),
+      title: titleCaseFromSlug(lastSegment),
+      description: `Mounted on the Express app in ${relFile}.`,
+      auth,
+      authNote,
+      _sourceHash: hashSource(`${relFile}::${stmt}`),
+      params: extractParamsFromPath(routePath),
+      responseExample: '{ }',
+      liveTestable: false,
+      sourceFile: relFile,
+    });
+  }
+  return endpoints;
+}
+
 export async function extract({ repoRoot, config, outputPaths }) {
   const opts = config.extractors.endpointsExpress;
   if (!opts?.enabled) return { skipped: true };
@@ -225,6 +269,22 @@ export async function extract({ repoRoot, config, outputPaths }) {
       slug: groupSlug,
       title: titleCaseFromSlug(groupSlug),
       description: `Mounted at ${prefix}. Extracted from ${relFile}.`,
+      endpoints,
+    });
+  }
+
+  // app.<method>() files (config: endpointsExpress.appFiles) - one group per
+  // configured file, keyed by its declared group slug.
+  for (const entry of opts.appFiles ?? []) {
+    const abs = resolve(repoRoot, entry.file);
+    if (!existsSync(abs)) continue;
+    const endpoints = endpointsFromAppFile(readFileSync(abs, 'utf8'), entry.file, entry.apiPrefix ?? '');
+    if (endpoints.length === 0) continue;
+    const groupSlug = entry.group ?? basename(dirname(abs));
+    groupsBySlug.set(groupSlug, {
+      slug: groupSlug,
+      title: entry.groupTitle ?? titleCaseFromSlug(groupSlug),
+      description: entry.groupDescription ?? `Extracted from ${entry.file}.`,
       endpoints,
     });
   }

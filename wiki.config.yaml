@@ -115,12 +115,40 @@ extractors:
     enabled: true
     source: wiki-content/changelog.yaml
 
-  # Not applicable to the control repo - explicitly disabled.
+  # The orchestrator's own HTTP surface (the Chrome-extension routes mounted
+  # directly on the Express app in src/index.ts). The router-per-feature
+  # routesGlob path stays unused here; appFiles handles app.<method>() routes.
   endpointsExpress:
-    enabled: false
-  endpointsKotlin:
-    enabled: false
+    enabled: true
+    appFiles:
+      - file: orchestrator/src/index.ts
+        group: extension-api
+        groupTitle: "Chrome Extension API"
+        groupDescription: "Routes the orchestrator mounts directly for the browser extension (heyitschloe/extensions). Mounted only when EXTENSION_API_KEY is set."
+
+  # Every pipeline in this repo's own registry (agent-ops is the control repo,
+  # so showAll includes the dev pipelines and the in-process job-search one).
   automation:
+    enabled: true
+    showAll: true
+    pipelinesYamlPath: orchestrator/src/registry/pipelines.yaml
+
+  # LiteLLM gateway aliases -> Model Gateway section.
+  models:
+    enabled: true
+    configPath: litellm/config.yaml
+
+  # Orchestrator env vars (required-ness taken from its requireEnv() calls) ->
+  # Configuration section.
+  env:
+    enabled: true
+    sources:
+      - envFile: orchestrator/.env.example
+        component: orchestrator
+        requiredFrom: orchestrator/src/index.ts
+
+  # Not applicable to the control repo - explicitly disabled.
+  endpointsKotlin:
     enabled: false
   tests:
     enabled: false

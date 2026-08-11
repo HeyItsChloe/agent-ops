@@ -2,16 +2,22 @@
 
 import type { NavSection } from '../types';
 import { features } from './features';
+import { endpointGroups } from './endpoints';
 import { workflows } from './workflows';
+import { automation } from './automation';
 import { skills } from './skills';
 import { markdownPages } from './pages';
 
 // No "Home" entry: the site title in the header is the home link.
 export const topNav: { title: string; href: string }[] = [
   { title: "Features", href: '/features' },
+  { title: "API Reference", href: '/api' },
   { title: "CI/CD", href: '/ci-cd' },
+  { title: "Automation", href: '/automation' },
   { title: "Skills", href: '/skills' },
   { title: "Dependencies & Integrations", href: '/dependencies' },
+  { title: "Model Gateway", href: '/models' },
+  { title: "Configuration", href: '/configuration' },
   { title: "Roadmap", href: '/roadmap' },
   { title: "Contributing", href: '/contributing' },
   { title: "Orchestrator", href: '/orchestrator' },
@@ -20,9 +26,13 @@ export const topNav: { title: string; href: string }[] = [
 
 export const sidebarSections: Record<string, NavSection> = {
   'features': { title: "Features", href: '/features', children: features.map((f) => ({ title: f.title, href: `/features/${f.slug}` })) },
+  'api': { title: "API Reference", href: '/api', children: endpointGroups.map((g) => ({ title: g.title, href: `/api/${g.slug}` })) },
   'ci-cd': { title: "CI/CD", href: '/ci-cd', children: workflows.map((w) => ({ title: w.title, href: `/ci-cd/${w.slug}` })) },
+  'automation': { title: "Automation", href: '/automation', children: automation.map((a) => ({ title: a.name, href: `/automation/${a.slug}` })) },
   'skills': { title: "Skills", href: '/skills', children: skills.map((s) => ({ title: s.title, href: `/skills/${s.slug}` })) },
   'dependencies': { title: "Dependencies & Integrations", href: '/dependencies', children: [] },
+  'models': { title: "Model Gateway", href: '/models', children: [] },
+  'configuration': { title: "Configuration", href: '/configuration', children: [] },
   'roadmap': { title: "Roadmap", href: '/roadmap', children: markdownPages.filter((p) => p.navSection === "Roadmap").map((p) => ({ title: p.title, href: `/roadmap/${p.slug}` })) },
   'contributing': { title: "Contributing", href: '/contributing', children: markdownPages.filter((p) => p.navSection === "Contributing").map((p) => ({ title: p.title, href: `/contributing/${p.slug}` })) },
   'orchestrator': { title: "Orchestrator", href: '/orchestrator', children: markdownPages.filter((p) => p.navSection === "Orchestrator").map((p) => ({ title: p.title, href: `/orchestrator/${p.slug}` })) },

@@ -4,11 +4,7 @@
 // logic in scripts/wiki-extractors/merge.mjs never overwrites or removes
 // entries whose extracted source content has not changed.
 
-import type { AutomationDoc } from '../types';
-import data from './automation.generated.json';
+import type { EnvVarDoc } from '../types';
+import data from './env.generated.json';
 
-export const automation = data as unknown as AutomationDoc[];
-
-export function getAutomation(slug: string) {
-  return automation.find((a) => a.slug === slug);
-}
+export const envVars = data as unknown as EnvVarDoc[];
