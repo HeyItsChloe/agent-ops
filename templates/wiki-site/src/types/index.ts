@@ -100,11 +100,15 @@ export interface AutomationDoc {
   slug: string;
   name: string;
   handler: string;
+  /** Semantic capability category (dev, jobsearch, crawler, …) for the matrix. */
+  category: string;
   executionKind: string;
   workflow?: string;
   triggers: string[];
   params: Record<string, unknown>;
   description: string;
+  /** Authored (no registry source) — rendered only when present. */
+  outputs?: string[];
 }
 
 /** Suite-level (not individual-test-level) coverage summary. */
@@ -195,4 +199,30 @@ export interface IntegrationDoc {
   auth: string;
   url: string;
   notes: NoteBlock[];
+}
+
+/** One LiteLLM gateway alias (litellm/config.yaml model_list), extracted. */
+export interface ModelAliasDoc {
+  slug: string;
+  /** The alias pipeline components address (e.g. "planning"). */
+  alias: string;
+  /** The concrete provider model behind it (e.g. "gemini/gemini-2.5-flash"). */
+  model: string;
+  /** Env var holding the provider key (e.g. "GEMINI_API_KEY"), or '' if none. */
+  apiKeyEnv: string;
+  /** Custom api_base if set (e.g. a local Ollama), else ''. */
+  apiBase: string;
+  /** Aliases this one falls back to, from router_settings.fallbacks. */
+  fallbacks: string[];
+}
+
+/** One environment variable from a .env.example, extracted. */
+export interface EnvVarDoc {
+  slug: string;
+  name: string;
+  /** True iff the code requires it (a requireEnv("NAME") call), not a guess. */
+  required: boolean;
+  description: string;
+  component: string;
+  defaultValue: string;
 }
