@@ -15,6 +15,25 @@ import { resolve, join } from 'node:path';
 import { parse } from 'yaml';
 import { mergeEntries, readJsonSidecar, writeJsonSidecar, writeGeneratedTsWrapper, hashSource, stableStringify, readAuthoredItems, overlayAuthored } from './merge.mjs';
 
+/**
+ * Semantic capability category for a pipeline, used to colour/group the
+ * /automation card matrix. Prefers an explicit `category:` key in the
+ * registry entry; otherwise derives from the handler (and workflow) name.
+ */
+function deriveCategory(p) {
+  if (p.category) return String(p.category);
+  const h = `${p.handler ?? ''} ${p.execution?.workflow ?? ''}`.toLowerCase();
+  if (h.includes('dev-ticket') || h.includes('dev-pipeline')) return 'dev';
+  if (h.includes('job-search') || h.includes('resume')) return 'jobsearch';
+  if (h.includes('crawler')) return 'crawler';
+  if (h.includes('email')) return 'email';
+  if (h.includes('e2e')) return 'e2e';
+  if (h.includes('docs') || h.includes('wiki')) return 'docs';
+  if (h.includes('deploy')) return 'deploy';
+  if (h.includes('sync')) return 'sync';
+  return 'other';
+}
+
 export async function extract({ repoRoot, config, outputPaths, controlRepoRoot }) {
   const opts = config.extractors.automation;
   if (!opts?.enabled) return { skipped: true };
@@ -52,6 +71,7 @@ export async function extract({ repoRoot, config, outputPaths, controlRepoRoot }
         slug: p.name,
         name: p.name,
         handler: p.handler,
+        category: deriveCategory(p),
         executionKind: p.execution?.kind ?? 'unknown',
         ...(p.execution?.workflow ? { workflow: p.execution.workflow } : {}),
         triggers,

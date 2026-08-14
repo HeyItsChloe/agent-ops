@@ -34,6 +34,18 @@ export default {
           warning: '#f59e0b',
           error: '#ef4444',
         },
+        // Pipeline-category colours for the /automation matrix (CSS vars in index.css).
+        cat: {
+          dev: 'var(--cat-dev)',
+          ci: 'var(--cat-ci)',
+          e2e: 'var(--cat-e2e)',
+          email: 'var(--cat-email)',
+          crawler: 'var(--cat-crawler)',
+          docs: 'var(--cat-docs)',
+          deploy: 'var(--cat-deploy)',
+          sync: 'var(--cat-sync)',
+          jobsearch: 'var(--cat-jobsearch)',
+        },
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', '-apple-system', 'sans-serif'],

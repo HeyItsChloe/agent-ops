@@ -100,11 +100,15 @@ export interface AutomationDoc {
   slug: string;
   name: string;
   handler: string;
+  /** Semantic capability category (dev, jobsearch, crawler, …) for the matrix. */
+  category: string;
   executionKind: string;
   workflow?: string;
   triggers: string[];
   params: Record<string, unknown>;
   description: string;
+  /** Authored (no registry source) — rendered only when present. */
+  outputs?: string[];
 }
 
 /** Suite-level (not individual-test-level) coverage summary. */

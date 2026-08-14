@@ -8,6 +8,18 @@
   --wiki-accent: #5169dd;
   --wiki-accent-hover: #4257c4;
   --wiki-accent-muted: rgba(81, 105, 221, 0.1);
+
+  /* Semantic pipeline-category colours (dark-tuned) for the /automation
+     matrix. The one palette addition to the otherwise single-accent theme. */
+  --cat-dev: #7c9bdb;
+  --cat-ci: #4fb3a2;
+  --cat-e2e: #a98ede;
+  --cat-email: #e2792f;
+  --cat-crawler: #6fc285;
+  --cat-docs: #a6b0b8;
+  --cat-deploy: #e0ac3e;
+  --cat-sync: #9aa3aa;
+  --cat-jobsearch: #e08aa6;
 }
 
 body {

@@ -3,6 +3,7 @@
     "slug": "busybuddy-dev",
     "name": "busybuddy-dev",
     "handler": "dev-ticket-pipeline",
+    "category": "dev",
     "executionKind": "github-actions",
     "workflow": "dev-pipeline-reusable.yml",
     "triggers": [
@@ -28,6 +29,7 @@
     "slug": "ordermate-dev",
     "name": "ordermate-dev",
     "handler": "dev-ticket-pipeline",
+    "category": "dev",
     "executionKind": "github-actions",
     "workflow": "dev-pipeline-reusable.yml",
     "triggers": [
@@ -53,6 +55,7 @@
     "slug": "resume-job-applier",
     "name": "resume-job-applier",
     "handler": "job-search-pipeline",
+    "category": "jobsearch",
     "executionKind": "in-process",
     "triggers": [
       "chat tool: run_personal_project_pipeline",
