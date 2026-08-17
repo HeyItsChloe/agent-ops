@@ -43,6 +43,50 @@ on:
         required: false
         type: boolean
         default: false
+      capture_screenshots:
+        description: Capture screenshots alongside video. Playwright repos get --screenshot=on passed through PLAYWRIGHT_SCREENSHOT; emulator repos get a screencap pulled after the run. Independent of record_video.
+        required: false
+        type: boolean
+        default: false
+      # ── Opt-in autogeneration + repair (agent-ops issue #10) ──
+      # All default so existing install_command/test_command callers are
+      # completely unchanged; the new e2e-autogen job only runs when
+      # autogen is explicitly true.
+      autogen:
+        description: Opt-in. Detect framework, generate E2E specs, install, run, and bounded-repair on failure. When false (default) this workflow behaves exactly as before.
+        required: false
+        type: boolean
+        default: false
+      test_framework:
+        description: Which test framework the autogen job generates for (playwright|cypress|jest|mocha). Ignored unless autogen is true; empty means detect.mjs decides.
+        required: false
+        type: string
+        default: ""
+      start_command:
+        description: How the autogen job boots the app under test before running specs (e.g. "npm run dev"). Backgrounded; ignored unless autogen is true. Empty means no server is started (e.g. pure API tests hitting an external base_url).
+        required: false
+        type: string
+        default: ""
+      base_url:
+        description: Base URL the generated specs target (exported as E2E_BASE_URL). Ignored unless autogen is true; empty means detect.mjs default.
+        required: false
+        type: string
+        default: ""
+      inventory_path:
+        description: Path (relative to working_directory) to a JSON route/endpoint inventory feeding generation. Optional; generation still runs with an empty plan if absent.
+        required: false
+        type: string
+        default: "e2e-inventory.json"
+      max_repair_attempts:
+        description: Upper bound on generate→install→test→regenerate cycles in the autogen job. Bounds CI spend. Ignored unless autogen is true.
+        required: false
+        type: number
+        default: 3
+      control_repo:
+        description: owner/repo hosting this reusable workflow's scripts/ (detect/generate/scaffold + check-flow-coverage). Overridable so forks/renamed orgs don't hit a hardcoded value (agent-ops issue #10 / #1c).
+        required: false
+        type: string
+        default: "11thandOrange/agent-ops"
       coverage_manifest_path:
         description: Path to this repo's critical-flow manifest (e.g. e2e-coverage.yaml) - a list of flow names that must each have a matching test. Empty string skips the check (repo hasn't adopted the manifest yet).
         required: false
@@ -52,11 +96,20 @@ on:
         required: false
         type: string
         default: "22"
+    secrets:
+      # Only consumed by the opt-in e2e-autogen job for the LiteLLM gateway
+      # (same alias pattern as wiki-author.mjs). Both optional: generation is a
+      # no-op / deterministic-fallback when unset, and existing non-autogen
+      # callers never reference them. No provider SDK/key ever touches CI.
+      LITELLM_PROXY_URL:
+        required: false
+      LITELLM_VIRTUAL_KEY:
+        required: false
 
 jobs:
   # ── Non-emulator path (Playwright, or any future non-Android e2e stack) ──
   e2e-tests:
-    if: inputs.needs_emulator == false
+    if: inputs.needs_emulator == false && inputs.autogen == false
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -77,17 +130,20 @@ jobs:
         id: run
         env:
           PLAYWRIGHT_VIDEO: ${{ inputs.record_video && 'on' || 'off' }}
+          PLAYWRIGHT_SCREENSHOT: ${{ inputs.capture_screenshots && 'on' || 'off' }}
         run: ${{ inputs.test_command }}
         working-directory: ${{ inputs.working_directory }}
 
       # Checked out separately, not part of the caller's own tree - this reusable
       # workflow's scripts/ live in agent-ops, same as skills do for
       # dev-pipeline-reusable.yml, just same-org here so no GH App token needed.
+      # control_repo is parameterized (agent-ops issue #10 / #1c) rather than
+      # hardcoded, so a fork/renamed org can point at its own copy.
       - name: Checkout agent-ops scripts
         if: inputs.coverage_manifest_path != ''
         uses: actions/checkout@v4
         with:
-          repository: 11thandOrange/agent-ops
+          repository: ${{ inputs.control_repo }}
           path: .agent-ops-scripts
 
       - name: Coverage manifest check
@@ -112,6 +168,14 @@ jobs:
           path: ${{ inputs.working_directory }}/test-results/**/*.webm
           if-no-files-found: ignore
 
+      - name: Upload screenshots
+        if: always() && inputs.capture_screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-screenshots
+          path: ${{ inputs.working_directory }}/test-results/**/*.png
+          if-no-files-found: ignore
+
       - name: Post PR comment
         if: always() && github.event_name == 'pull_request'
         uses: actions/github-script@v7
@@ -130,7 +194,7 @@ jobs:
 
   # ── Emulator path (Android/Espresso) ──
   e2e-tests-emulator:
-    if: inputs.needs_emulator == true
+    if: inputs.needs_emulator == true && inputs.autogen == false
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -205,6 +269,13 @@ jobs:
             kill -INT "$RECORDER_PID" 2>/dev/null || true
             sleep 2
             adb pull /sdcard/e2e-test-run.mp4 ./e2e-test-run.mp4 || true
+          fi
+
+          # Screenshot capture (agent-ops issue #10, 3e): a final-state screencap
+          # pulled after the run, independent of the video toggle. Non-fatal.
+          if [ "$CAPTURE_SCREENSHOTS" = "true" ]; then
+            adb shell screencap -p /sdcard/e2e-screenshot.png 2>/dev/null || true
+            adb pull /sdcard/e2e-screenshot.png ./e2e-screenshot.png || true
           fi
 
           exit $TEST_EXIT
@@ -317,7 +388,7 @@ jobs:
       - name: Run tests
         id: run
         working-directory: ${{ inputs.working_directory }}
-        run: RECORD_VIDEO="${{ inputs.record_video }}" TEST_COMMAND="${{ inputs.test_command }}" sh "$RUNNER_TEMP/run-emulator-tests.sh"
+        run: RECORD_VIDEO="${{ inputs.record_video }}" CAPTURE_SCREENSHOTS="${{ inputs.capture_screenshots }}" TEST_COMMAND="${{ inputs.test_command }}" sh "$RUNNER_TEMP/run-emulator-tests.sh"
 
       - name: Terminate emulator
         if: always()
@@ -327,7 +398,7 @@ jobs:
         if: inputs.coverage_manifest_path != ''
         uses: actions/checkout@v4
         with:
-          repository: 11thandOrange/agent-ops
+          repository: ${{ inputs.control_repo }}
           path: .agent-ops-scripts
 
       - name: Coverage manifest check
@@ -354,6 +425,14 @@ jobs:
           path: ${{ inputs.working_directory }}/e2e-test-run.mp4
           if-no-files-found: ignore
 
+      - name: Upload screenshots
+        if: always() && inputs.capture_screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-screenshots
+          path: ${{ inputs.working_directory }}/e2e-screenshot.png
+          if-no-files-found: ignore
+
       - name: Post PR comment
         if: always() && github.event_name == 'pull_request'
         uses: actions/github-script@v7
@@ -368,4 +447,192 @@ jobs:
               repo: context.repo.repo,
               issue_number: context.issue.number,
               body: `## ${icon} E2E Tests — ${status}\n\nSee the [CI run](${runUrl}) for details.`,
+            });
+
+  # ── Autogeneration + bounded repair path (agent-ops issue #10) ──
+  # Opt-in via autogen: true. A brand-new repo (no tests/CI) gets: framework
+  # detection → spec generation → dependency install → app boot → test run →
+  # (on failure) feed logs back → regenerate → retry, bounded by
+  # max_repair_attempts. Nothing here runs for existing install_command/
+  # test_command callers (autogen defaults to false), so they're untouched.
+  e2e-autogen:
+    if: inputs.autogen == true && inputs.needs_emulator == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node_version }}
+
+      # This reusable workflow's own scripts/ (detect/generate/scaffold +
+      # check-flow-coverage) live in control_repo, checked out separately from
+      # the caller's tree. Parameterized, not hardcoded (issue #10 / #1c).
+      - name: Checkout agent-ops scripts
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ inputs.control_repo }}
+          path: .agent-ops-scripts
+
+      - name: Install agent-ops script deps
+        run: cd .agent-ops-scripts/scripts && npm ci --omit=dev
+
+      - name: Install app dependencies
+        working-directory: ${{ inputs.working_directory }}
+        run: |
+          if [ -f package-lock.json ]; then npm ci
+          elif [ -f yarn.lock ]; then corepack enable && yarn install --frozen-lockfile
+          elif [ -f pnpm-lock.yaml ]; then corepack enable && pnpm install --frozen-lockfile
+          elif [ -f package.json ]; then npm install --no-audit --no-fund
+          else echo "No Node manifest found; skipping app dependency install."
+          fi
+
+      - name: Detect framework
+        id: detect
+        working-directory: ${{ inputs.working_directory }}
+        run: |
+          node "$GITHUB_WORKSPACE/.agent-ops-scripts/scripts/e2e/detect.mjs" . > "$RUNNER_TEMP/detection.json"
+          echo "Detection:"; cat "$RUNNER_TEMP/detection.json"
+
+      - name: Install test framework
+        working-directory: ${{ inputs.working_directory }}
+        env:
+          TEST_FRAMEWORK: ${{ inputs.test_framework }}
+        run: |
+          FW="$TEST_FRAMEWORK"
+          if [ -z "$FW" ]; then FW="$(node -e "process.stdout.write(require('$RUNNER_TEMP/detection.json').testFramework||'playwright')")"; fi
+          echo "Test framework: $FW"
+          case "$FW" in
+            playwright) npm i -D @playwright/test >/dev/null 2>&1 || true; npx playwright install chromium --with-deps ;;
+            cypress)    npm i -D cypress >/dev/null 2>&1 || true ;;
+            jest)       npm i -D jest >/dev/null 2>&1 || true ;;
+            mocha)      npm i -D mocha >/dev/null 2>&1 || true ;;
+          esac
+
+      # generate → (start app) → test, retried up to max_repair_attempts. On
+      # each failure the run log is fed back into generate.mjs so the model can
+      # repair the spec; --allow-fallback guarantees a runnable artifact even
+      # when the LiteLLM gateway is unset (no-op model), so the loop is always
+      # bounded and never hangs waiting on generation.
+      - name: Generate, run, and repair (bounded)
+        id: run
+        working-directory: ${{ inputs.working_directory }}
+        env:
+          LITELLM_PROXY_URL: ${{ secrets.LITELLM_PROXY_URL }}
+          LITELLM_VIRTUAL_KEY: ${{ secrets.LITELLM_VIRTUAL_KEY }}
+          TEST_FRAMEWORK: ${{ inputs.test_framework }}
+          START_COMMAND: ${{ inputs.start_command }}
+          BASE_URL: ${{ inputs.base_url }}
+          INVENTORY_PATH: ${{ inputs.inventory_path }}
+          MAX_ATTEMPTS: ${{ inputs.max_repair_attempts }}
+          RECORD_VIDEO: ${{ inputs.record_video }}
+          CAPTURE_SCREENSHOTS: ${{ inputs.capture_screenshots }}
+        run: |
+          set -u
+          SCRIPTS="$GITHUB_WORKSPACE/.agent-ops-scripts/scripts/e2e"
+          DET="$RUNNER_TEMP/detection.json"
+          FW="$TEST_FRAMEWORK"
+          [ -z "$FW" ] && FW="$(node -e "process.stdout.write(require('$DET').testFramework||'playwright')")"
+          BURL="$BASE_URL"
+          [ -z "$BURL" ] && BURL="$(node -e "process.stdout.write(require('$DET').baseUrl||'http://localhost:3000')")"
+          export E2E_BASE_URL="$BURL"
+          export PLAYWRIGHT_VIDEO=$([ "$RECORD_VIDEO" = "true" ] && echo on || echo off)
+          export PLAYWRIGHT_SCREENSHOT=$([ "$CAPTURE_SCREENSHOTS" = "true" ] && echo on || echo off)
+
+          INV=""
+          if [ -n "$INVENTORY_PATH" ] && [ -f "$INVENTORY_PATH" ]; then INV="--inventory $INVENTORY_PATH"; fi
+
+          # Boot the app under test once, if a start command was provided.
+          SERVER_PID=""
+          if [ -n "$START_COMMAND" ]; then
+            echo "Starting app: $START_COMMAND"
+            sh -c "$START_COMMAND" &
+            SERVER_PID=$!
+            for i in $(seq 1 30); do
+              if curl -sSf -o /dev/null "$BURL" 2>/dev/null; then echo "App is up."; break; fi
+              sleep 2
+            done
+          fi
+
+          test_cmd() {
+            case "$FW" in
+              playwright) npx playwright test ;;
+              cypress)    npx cypress run ;;
+              jest)       npx jest ;;
+              mocha)      npx mocha ;;
+              *)          npx playwright test ;;
+            esac
+          }
+
+          ATTEMPT=1
+          RESULT=1
+          LOG="$RUNNER_TEMP/e2e-run.log"
+          : > "$LOG"
+          while [ "$ATTEMPT" -le "$MAX_ATTEMPTS" ]; do
+            echo "=== Autogen attempt $ATTEMPT / $MAX_ATTEMPTS ==="
+            FAIL_ARG=""
+            if [ "$ATTEMPT" -gt 1 ]; then FAIL_ARG="--failure-log $LOG"; fi
+            node "$SCRIPTS/generate.mjs" --repo-root . --detection "$DET" $INV \
+              --framework "$FW" --allow-fallback --force $FAIL_ARG
+            if test_cmd 2>&1 | tee "$LOG"; then
+              echo "Tests passed on attempt $ATTEMPT."
+              RESULT=0
+              break
+            fi
+            echo "Tests failed on attempt $ATTEMPT."
+            RESULT=1
+            ATTEMPT=$((ATTEMPT + 1))
+          done
+
+          if [ -n "$SERVER_PID" ]; then kill "$SERVER_PID" 2>/dev/null || true; fi
+          exit $RESULT
+
+      - name: Coverage manifest check
+        if: always() && inputs.coverage_manifest_path != ''
+        run: |
+          cd .agent-ops-scripts/scripts
+          node check-flow-coverage.mjs "$GITHUB_WORKSPACE/${{ inputs.working_directory }}/${{ inputs.coverage_manifest_path }}" || true
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-results
+          path: ${{ inputs.working_directory }}/test-results/**
+          if-no-files-found: ignore
+
+      - name: Upload video
+        if: always() && inputs.record_video
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-video
+          path: ${{ inputs.working_directory }}/test-results/**/*.webm
+          if-no-files-found: ignore
+
+      - name: Upload screenshots
+        if: always() && inputs.capture_screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-test-screenshots
+          path: ${{ inputs.working_directory }}/test-results/**/*.png
+          if-no-files-found: ignore
+
+      - name: Post PR comment
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const passed = '${{ steps.run.outcome }}' === 'success';
+            const icon = passed ? '✅' : '❌';
+            const status = passed ? 'PASSED' : 'FAILED';
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: `## ${icon} E2E Tests (autogen) — ${status}\n\nGenerated + repaired specs, bounded by max_repair_attempts. See the [CI run](${runUrl}) for details.`,
             });
