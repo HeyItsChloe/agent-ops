@@ -17,6 +17,8 @@ import {
   type GitHubAppConfig,
 } from "@heyitschloe/pipeline-orchestrator";
 import { createJobSearchPipelineHandler } from "./handlers/job_search_pipeline.js";
+import { createOutreachPipelineHandler } from "./handlers/outreach_pipeline.js";
+import { outreachDepsFromEnv } from "./jobs/outreach/run.js";
 import { handleApplicantProfileLookup, handleApplicationsLookup } from "./triggers/applications_lookup.js";
 import { handleGenerateAnswer } from "./triggers/generate_answer.js";
 import { mountEmailRoutes } from "./integrations/email/route.js";
@@ -115,6 +117,12 @@ const personalPipelineDeps = {
   applicantProfile,
 };
 
+// Outreach pipeline deps — reuses the same personal installation (the-store
+// append + skill fetch) and LiteLLM gateway as the job-search pipeline.
+// Optional integrations (the-store, Gmail, Discord) resolve to undefined
+// when unset, fail-open, matching the_store.ts's posture.
+const outreachDeps = outreachDepsFromEnv(githubApp, personalInstallationId, liteLLM);
+
 const app = createServer(
   {
     port,
@@ -129,6 +137,7 @@ const app = createServer(
   [
     createDevTicketPipelineHandler({ githubApp, installationId: devInstallationId }),
     createJobSearchPipelineHandler(personalPipelineDeps),
+    createOutreachPipelineHandler(outreachDeps),
   ],
 );
 

@@ -1,0 +1,94 @@
+name: outreach-daily
+
+# Daily automated web-scraping + outreach pipeline (issue #11):
+# scrape 25 new payment-processing companies -> dedup against the-store ->
+# persist CSV + JSON -> generate a personalized email per company from the
+# configured skill -> create a Gmail DRAFT (never send) -> post a Discord
+# summary. Zero manual execution.
+#
+# Every credential is a GitHub Secret, forwarded to the run as env only for
+# the duration of the step. Nothing is ever written to the repo or logs.
+# The pipeline itself is fail-open on optional integrations (the-store /
+# Gmail / Discord unset) and NEVER sends email — drafts only, enforced in
+# integrations/gmail.ts and its unit test.
+
+on:
+  # 13:00 UTC daily (~06:00 America/Los_Angeles). Cron is UTC on GitHub.
+  schedule:
+    - cron: "0 13 * * *"
+  # Manual run for testing / re-runs.
+  workflow_dispatch:
+    inputs:
+      pipeline_name:
+        description: "Registry pipeline name to run"
+        required: false
+        default: "payment-processor-outreach"
+
+concurrency:
+  # Never overlap two outreach runs — a second run mid-flight would dedup
+  # against a not-yet-persisted index and risk duplicates.
+  group: outreach-daily
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: orchestrator
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: orchestrator/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Run outreach pipeline
+        env:
+          # --- GitHub App (the-store append + skill fetch, personal install) ---
+          GH_APP_ID: ${{ secrets.GH_APP_ID }}
+          GH_APP_PRIVATE_KEY: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          GH_APP_INSTALLATION_ID_PERSONAL: ${{ secrets.GH_APP_INSTALLATION_ID_HEYITSCHLOE }}
+
+          # --- Model gateway (enrichment + email generation) ---
+          LITELLM_PROXY_URL: ${{ secrets.LITELLM_PROXY_URL }}
+          LITELLM_VIRTUAL_KEY: ${{ secrets.LITELLM_VIRTUAL_KEY }}
+          OUTREACH_MODEL_ALIAS: ${{ vars.OUTREACH_MODEL_ALIAS }}
+
+          # --- Discovery providers (at least one required) ---
+          SERPAPI_API_KEY: ${{ secrets.SERPAPI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+          # --- Storage repo (the-store) — optional, fail-open if unset ---
+          THE_STORE_OWNER: ${{ secrets.THE_STORE_OWNER }}
+          THE_STORE_REPO: ${{ secrets.THE_STORE_REPO }}
+          THE_STORE_BRANCH: ${{ secrets.THE_STORE_BRANCH }}
+          OUTREACH_STORE_PATH: ${{ vars.OUTREACH_STORE_PATH }}
+
+          # --- Gmail (DRAFTS ONLY, never send) — optional, fail-open ---
+          GMAIL_CLIENT_ID: ${{ secrets.GMAIL_CLIENT_ID }}
+          GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
+          GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
+          GMAIL_SENDER: ${{ secrets.GMAIL_SENDER }}
+
+          # --- Discord (completion / failure summary) — optional, fail-open ---
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          DISCORD_CHANNEL_ID: ${{ secrets.DISCORD_CHANNEL_ID }}
+
+          # --- Control repo (skill fetch target) ---
+          CONTROL_REPO_OWNER: ${{ github.repository_owner }}
+          CONTROL_REPO_NAME: ${{ github.event.repository.name }}
+          CONTROL_REPO_BRANCH: main
+          OUTREACH_REQUESTED_BY: scheduled-cron
+        run: npx tsx scripts/run_outreach.ts "${{ github.event.inputs.pipeline_name || 'payment-processor-outreach' }}"

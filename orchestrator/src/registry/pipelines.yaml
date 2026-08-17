@@ -87,3 +87,44 @@
     strategy: scrapeOne
     max_results: 10
     search_provider: serpapi
+
+# Automated web-scraping + outreach pipeline (issue #11). Like
+# resume-job-applier this is one of THIS deployment's own private pipelines
+# and runs in-process (the orchestrator itself scrapes, dedups, stores,
+# generates, drafts, and notifies — there's no separate repo/CI runner to
+# dispatch a build into). Execution is triggered daily by
+# .github/workflows/outreach-daily.yml, which invokes the CLI entrypoint
+# (scripts/run_outreach.ts) that dispatches this same handler; it can also be
+# fired ad hoc over the generic HTTP path (http_kind: outreach) or the
+# dedicated MCP tool. The vertical is config-driven (default "payment
+# processors") so the whole pipeline is reusable for any outreach vertical
+# without code changes.
+- name: payment-processor-outreach
+  handler: outreach-pipeline
+  skill_path: skills/outreach/outreach-email
+  execution:
+    kind: in-process
+  triggers:
+    chat_tool: run_outreach_pipeline
+    http_kind: outreach
+  params:
+    model_profile: planning
+    vertical_label: payment processors
+    search_terms:
+      - payment processing companies
+      - payment gateway providers
+      - merchant services companies
+      - payment service providers (PSP)
+      - card acquiring / payment facilitator companies
+    target_per_run: 25
+    skill: outreach-email
+    tone: warm, concise, professional
+    cta: a brief 15-minute intro call
+    # Sender identity is config, never hardcoded into a prompt — the skill
+    # renders against these values. Real values come from GitHub Secrets /
+    # env at deploy time; these are safe non-secret defaults/placeholders.
+    sender:
+      name: Chloe
+      company: Agent-Ops
+      role: Partnerships
+      email: outreach@example.com
